@@ -1,0 +1,41 @@
+use std::fmt::{Debug, Display};
+
+use crate::core::Pos;
+
+pub struct ErrMeg {
+    pos: Pos,
+    err: Err,
+}
+impl ErrMeg {
+    pub fn new(pos: Pos, err: Err) -> Self {
+        Self { pos, err }
+    }
+}
+impl Display for ErrMeg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.pos, self.err)
+    }
+}
+impl Debug for ErrMeg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+pub enum Err {
+    CommentforError,
+    UnknownEscapeCharacter,
+    UnknowSymbol,
+}
+impl Display for Err {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let meg = match crate::LANGUAGE {
+            crate::lang::Language::Chinese => match self {
+                Err::CommentforError => "你可能在尝试编写一个注释 正确的注释为:\n// 注释",
+                Err::UnknownEscapeCharacter => "未知的转义字符",
+                Err::UnknowSymbol => "未知的运算符",
+            },
+            crate::lang::Language::English => todo!(),
+        };
+        write!(f, "{}", meg)
+    }
+}
