@@ -25,6 +25,9 @@ pub enum Err {
     CommentforError,
     UnknownEscapeCharacter,
     UnknowSymbol,
+    UnknowKeyword,
+    Unmatched,
+    Empty,
 }
 impl Display for Err {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -32,7 +35,10 @@ impl Display for Err {
             crate::lang::Language::Chinese => match self {
                 Err::CommentforError => "你可能在尝试编写一个注释 正确的注释为:\n// 注释",
                 Err::UnknownEscapeCharacter => "未知的转义字符",
-                Err::UnknowSymbol => "未知的运算符",
+                Err::UnknowSymbol => "未知运算符",
+                Err::UnknowKeyword => "未知关键字",
+                Err::Empty => "空",
+                Err::Unmatched => "不匹配",
             },
             crate::lang::Language::English => todo!(),
         };

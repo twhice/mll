@@ -1,3 +1,3 @@
 fn main() {
-    terl::test();
+    mindustry_rogic_hardening::test();
 }

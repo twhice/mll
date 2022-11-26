@@ -24,7 +24,10 @@ MRH能够把mhr具有高级特性的MRH代码编译为传统逻辑代码
 #### MRH代码
 ```
 // 定义ax为长度为4的数组
-let ax = arr 4
+// 但是我更建议在内存创建(但是这样的数组只能存数字)
+set ax = arr(4)
+// 在内存创建
+set bx = new(4);
 ```
 #### 逻辑代码
 ```
@@ -44,6 +47,25 @@ set array_ax_this array_ax_e3
 set @counter ...
 
 ```
+### 函数
+MRH的函数通过多处理器实现
+
+下面的代码是一个简单的函数调用的例子
+```
+pg{
+    set ax = 1, bx = 2 ,ay = 3, by = 4
+    print(distance(ax,ay,bx,by))
+    print_flush(message1)
+}
+pg distance{
+    return sqrt((ax-bx)**2+(ay-by)**2)
+}
+```
+如果一个函数调用多次, 有两种解决方案:
+
+1. 编译器计算达到最大效率至少需要多少处理器
+
+2. (太麻烦删了)
 ### 读取简化
 对Sensor命令的简化
 
@@ -66,6 +88,8 @@ ic          itemCapacity
 lc          LiquidsCapacity
 
 pc          powerCapacity
+
+
 
 pns         powerNetStored
 
@@ -143,7 +167,7 @@ cl          color
 
 #### MRH代码
 ```
-let udead = gg in @unit
+set udead = gg in @unit
 // in是一个运算符!
 ```
 #### 传统逻辑代码
@@ -158,7 +182,7 @@ TODO
 
 #### MRH代码
 ```
-let x = 114 * (514 + 1919810)
+set x = 114 * (514 + 1919810)
 ```
 #### 传统逻辑代码
 ```
@@ -172,7 +196,7 @@ rand.floor...
 举例:
 #### MRH代码
 ```
-let r = rand(114514)
+set r = rand(114514)
 ```
 #### 传统逻辑代码
 ```
@@ -201,11 +225,11 @@ pg{
     write(cell1,8,1)
 }
 pg{
-    for i 0 3
-        for i 0 3
-            let data = read(cell1,i * 3 + j)
-            let ox = i * 30
-            let oy = j * 30
+    for i 0,3
+        for i 0,3
+            set data = read(cell1,i * 3 + j)
+            set ox = i * 30
+            set oy = j * 30
             if data
                 draw_rect(ox,oy,30,30)
     draw_flush(display1)

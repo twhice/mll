@@ -1,31 +1,17 @@
-use libc::cpu_set_t;
+use super::Pos;
+use super::Token;
+use super::TokenType;
 
 use crate::error::{Err, ErrMeg};
 
-use super::Pos;
-#[derive(Debug)]
-pub enum TokenType {
-    Name,
-    Num,
-    Symbol,
-    Str,
-    Space,
-}
-#[derive(Debug)]
-pub struct Token {
-    text: Vec<char>,
-    pos: Pos,
-    ttype: TokenType,
-}
-
 // 只支持处理一行!
-pub fn lexer(src: String, base_pos: Pos) -> Result<Vec<Token>, ErrMeg> {
+pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
     let mut src: Vec<char> = src.chars().collect();
     // let mut index = 0;
     // let mut currten: char = ' ';
-    let mut pos = base_pos;
+    let pos = base_pos;
     let p_src: *mut Vec<char> = &mut src as *mut Vec<char>;
-    let p_pos: *mut Pos = &mut pos as *mut Pos;
+    let p_pos: *mut Pos = pos as *mut Pos;
 
     let mut ret = Vec::new();
     let mut line_begin = true;
@@ -53,18 +39,10 @@ pub fn lexer(src: String, base_pos: Pos) -> Result<Vec<Token>, ErrMeg> {
 
         src.remove(0);
         if line_begin && currten.is_whitespace() {
-            let mut temp = " ".to_owned();
-            let b_pos = pos.clone();
             while matches!(src.first(), Some(..)) && src[0].is_ascii_whitespace() {
-                temp += " ";
                 src.remove(0);
                 pos.pass();
             }
-            ret.push(Token {
-                text: temp.chars().collect(),
-                pos: b_pos,
-                ttype: TokenType::Space,
-            })
         } else {
             line_begin = false
         }
@@ -72,10 +50,10 @@ pub fn lexer(src: String, base_pos: Pos) -> Result<Vec<Token>, ErrMeg> {
             if matches!(src.first(), Some('/')) {
                 src.clear();
             } else {
-                return Err(ErrMeg::new(pos, Err::CommentforError));
+                return Err(ErrMeg::new(pos.to_owned(), Err::CommentforError));
             }
         } else if currten == '#' {
-            return Err(ErrMeg::new(pos, Err::CommentforError));
+            return Err(ErrMeg::new(pos.to_owned(), Err::CommentforError));
         // Name
         } else if currten.is_alphabetic() || currten == '_' {
             ret.push(collect_by_rule(
@@ -107,7 +85,7 @@ pub fn lexer(src: String, base_pos: Pos) -> Result<Vec<Token>, ErrMeg> {
                         '"' => temp.push('"'),
                         '/' => temp.push('/'),
                         'r' => {}
-                        _ => return Err(ErrMeg::new(pos, Err::UnknownEscapeCharacter)),
+                        _ => return Err(ErrMeg::new(pos.to_owned(), Err::UnknownEscapeCharacter)),
                     };
                 } else if currten == '\\' {
                     pre = true
@@ -180,20 +158,20 @@ pub fn lexer(src: String, base_pos: Pos) -> Result<Vec<Token>, ErrMeg> {
                     if matches!(c_next, Some('&')) {
                         "&&"
                     } else {
-                        return Err(ErrMeg::new(pos, Err::UnknowSymbol));
+                        return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol));
                     }
                 }
                 '|' => {
                     if matches!(c_next, Some('|')) {
                         "||"
                     } else {
-                        return Err(ErrMeg::new(pos, Err::UnknowSymbol));
+                        return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol));
                     }
                 }
                 '(' => "(",
                 ')' => ")",
                 '.' => ".",
-                _ => return Err(ErrMeg::new(pos, Err::UnknowSymbol)),
+                _ => return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol)),
             };
             if temp.len() == 2 {
                 src.remove(0);
