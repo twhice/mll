@@ -69,19 +69,16 @@ fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     }
     return Ok(ComUnit::Set(sets));
 }
-fn expr(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    todo!()
-}
 fn ctrl_if(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     tokens_match_err(tokens, "if")?;
     let condition = tokens_get_expr(tokens)?;
     tokens_match_err(tokens, "{")?;
-    let if_statements = get_cus(tokens)?;
+    let if_statements = tokens_get_eus(tokens)?;
     let mut else_statements = Vec::new();
     if tokens_match_bool(tokens, "else") {
         tokens.remove(0);
         tokens_match_err(tokens, "{")?;
-        else_statements = get_cus(tokens)?;
+        else_statements = tokens_get_eus(tokens)?;
     }
     return Ok(ComUnit::Ctrl(Ctrl::Ctrl_if(CtrlIf::new(
         condition,
@@ -104,7 +101,7 @@ fn ctrl_pg(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     tokens_match_err(tokens, "pg")?;
     let fn_name = tokens_tryget_name(tokens);
     tokens_match_err(tokens, "{")?;
-    let statements = get_cus(tokens)?;
+    let statements = tokens_get_eus(tokens)?;
     return Ok(ComUnit::Ctrl(Ctrl::Ctrl_pg(CtrlPg::new(
         fn_name, statements,
     ))));
@@ -181,10 +178,50 @@ fn get_space_size(tokens: &mut Vec<Token>) -> Result<usize, ErrMeg> {
         Ok(0)
     }
 }
-fn get_cus(tokens: &mut Vec<Token>) -> Result<Vec<ComUnit>, ErrMeg> {
+fn tokens_get_eus(tokens: &mut Vec<Token>) -> Result<Vec<ComUnit>, ErrMeg> {
     let mut ret = Vec::new();
     while !tokens.is_empty() && !tokens_match_bool(tokens, "}") {
         ret.push(com_unit(tokens)?);
     }
     return Ok(ret);
+}
+fn expr(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+    todo!()
+}
+fn expr_eoe(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
+    let e = Box::new(expr_d(tokens)?);
+    let o = Box::new(expr_op(tokens)?);
+    let E = Box::new(expr_d(tokens)?);
+    return Ok(Expr::Eoe(r#e, o, E));
+}
+fn expr_oe(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
+    let o = Box::new(expr_op(tokens)?);
+    let e = Box::new(expr_d(tokens)?);
+    return Ok(Expr::Oe(o, e));
+}
+fn expr_eo(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
+    let e = Box::new(expr_d(tokens)?);
+    let o = Box::new(expr_op(tokens)?);
+    return Ok(Expr::Eo(e, o));
+}
+fn expr_d(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
+    let p_tokens = tokens as *mut Vec<Token>;
+    let token = get_tokens_first(tokens)?;
+    unsafe { (*p_tokens).remove(0) };
+    match token.get_type() {
+        TokenType::Name | TokenType::Num => return Ok(Expr::D(token.get_text().clone())),
+        _ => return Err(ErrMeg::new(token.pos.clone(), Err::NotVul)),
+    }
+}
+fn expr_op(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
+    let p_tokens = tokens as *mut Vec<Token>;
+    let token = get_tokens_first(tokens)?;
+    unsafe { (*p_tokens).remove(0) };
+    match token.get_type() {
+        TokenType::Symbol => return Ok(Expr::D(token.get_text().clone())),
+        _ => return Err(ErrMeg::new(token.pos.clone(), Err::NotVul)),
+    }
+}
+fn expr_bra() -> Result<Expr, ErrMeg> {
+    todo!()
 }

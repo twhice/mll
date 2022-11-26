@@ -28,6 +28,7 @@ pub enum Err {
     UnknowKeyword,
     Unmatched,
     Empty,
+    NotVul,
 }
 impl Display for Err {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -39,6 +40,7 @@ impl Display for Err {
                 Err::UnknowKeyword => "未知关键字",
                 Err::Empty => "空",
                 Err::Unmatched => "不匹配",
+                Err::NotVul => "它不可以作为值",
             },
             crate::lang::Language::English => todo!(),
         };

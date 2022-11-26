@@ -170,6 +170,8 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 }
                 '(' => "(",
                 ')' => ")",
+                '{' => "{",
+                '}' => "}",
                 '.' => ".",
                 _ => return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol)),
             };

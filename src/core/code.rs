@@ -89,4 +89,9 @@ impl CtrlReturn {
     }
 }
 
-pub enum Expr {}
+pub enum Expr {
+    Eoe(Box<Expr>, Box<Expr>, Box<Expr>),
+    Eo(Box<Expr>, Box<Expr>),
+    Oe(Box<Expr>, Box<Expr>),
+    D(Vec<char>),
+}
