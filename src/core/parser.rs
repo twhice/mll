@@ -26,33 +26,22 @@ pub fn parser(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     }
 }
 fn com_unit(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    let _tokens = &mut tokens.clone();
-    match set(_tokens) {
-        Ok(ret) => Ok(ret),
-        Err(_err) => {
-            println!("{_err}");
-            ctrl(tokens)
-        }
+    let keytoken = &tokens[0];
+    if keytoken.match_text("set") {
+        set(tokens)
+    } else if keytoken.match_text("if") {
+        ctrl_if(tokens)
+    } else if keytoken.match_text("switch") {
+        ctrl_switch(tokens)
+    } else if keytoken.match_text("def") {
+        ctrl_def(tokens)
+    } else if keytoken.match_text("return") {
+        ctrl_return(tokens)
+    } else if keytoken.match_text("while") {
+        ctrl_while(tokens)
+    } else {
+        todo!()
     }
-}
-fn ctrl(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    let _tokens = &mut tokens.clone();
-    if let Ok(ret) = ctrl_if(_tokens) {
-        return Ok(ret);
-    }
-    let _tokens = &mut tokens.clone();
-    if let Ok(ret) = ctrl_pg(_tokens) {
-        return Ok(ret);
-    }
-    let _tokens = &mut tokens.clone();
-    if let Ok(ret) = ctrl_for(_tokens) {
-        return Ok(ret);
-    }
-    let _tokens = &mut tokens.clone();
-    if let Ok(ret) = ctrl_switch(_tokens) {
-        return Ok(ret);
-    }
-    ctrl_return(tokens)
 }
 fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     if tokens_match_bool(tokens, "set") {
@@ -75,44 +64,76 @@ fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
 fn ctrl_if(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     tokens_match_err(tokens, "if")?;
     let condition = tokens_build_expr(tokens)?;
-    tokens_match_err(tokens, "{")?;
-    let if_statements = tokens_get_eus(tokens)?;
+
+    let if_statements = tokens_get_block(tokens)?;
     let mut else_statements = Vec::new();
+    let mut elifs = Vec::new();
+    while tokens_match_bool(tokens, "elif") {
+        let condition = tokens_build_expr(tokens)?;
+        let statements = tokens_get_block(tokens)?;
+        elifs.push((condition, statements));
+    }
     if tokens_match_bool(tokens, "else") {
         tokens.remove(0);
-        tokens_match_err(tokens, "{")?;
-        else_statements = tokens_get_eus(tokens)?;
+        else_statements = tokens_get_block(tokens)?;
     }
-    return Ok(ComUnit::Ctrl(Ctrl::Ctrl_if(CtrlIf::new(
+    return Ok(ComUnit::Ctrl(Ctrl::CtrlIf(CtrlIf::new(
         condition,
         if_statements,
+        elifs,
         else_statements,
     ))));
 }
-fn ctrl_for(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    tokens_match_err(tokens, "for");
-    let name = tokens_get_name(tokens)?;
-    tokens_match_err(tokens, ",")?;
+fn ctrl_while(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+    // tokens_match_err(tokens, "while")?;
+    // skip sth
+    tokens.remove(0);
+
     let condition = tokens_build_expr(tokens)?;
-    tokens_match_err(tokens, ",")?;
-    let work = tokens_build_expr(tokens)?;
-    todo!()
+
+    let statements = tokens_get_block(tokens)?;
+    return Ok(ComUnit::Ctrl(Ctrl::CtrlWhile(CtrlWhile::new(
+        condition, statements,
+    ))));
 }
 fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    todo!()
+    // skip sth
+    tokens.remove(0);
+    // "condition"
+    let condition = tokens_build_expr(tokens)?;
+    tokens_match_err(tokens, "{")?;
+    // cases
+    let mut cases = Vec::new();
+    while tokens_match_bool(tokens, "{") {
+        cases.push(tokens_get_block(tokens)?);
+    }
+    return Ok(ComUnit::Ctrl(Ctrl::CtrlSwitch(CtrlSwitch::new(
+        condition, cases,
+    ))));
 }
 fn ctrl_return(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     tokens_match_err(tokens, "return")?;
     let expr = tokens_build_expr(tokens)?;
-    return Ok(ComUnit::Ctrl(Ctrl::Ctrl_return(CtrlReturn::new(expr))));
+    return Ok(ComUnit::Ctrl(Ctrl::CtrlReturn(CtrlReturn::new(expr))));
 }
-fn ctrl_pg(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
-    tokens_match_err(tokens, "pg")?;
-    let fn_name = tokens_tryget_name(tokens);
-    tokens_match_err(tokens, "{")?;
-    let statements = tokens_get_eus(tokens)?;
-    return Ok(ComUnit::Ctrl(Ctrl::Ctrl_pg(CtrlPg::new(
-        fn_name, statements,
+fn ctrl_def(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+    // tokens_match_err(tokens, "pg")?;
+    tokens.remove(0);
+    let fn_name = tokens_get_name(tokens)?;
+    tokens_match_err(tokens, "(")?;
+    let mut args = vec![];
+    let arg0 = tokens_tryget_name(tokens);
+    if let Some(arg0) = arg0 {
+        args.push(arg0.clone())
+    }
+    while tokens_match_bool(tokens, ",") {
+        tokens.remove(0);
+        args.push(tokens_get_name(tokens)?);
+    }
+    tokens_match_err(tokens, ")")?;
+    let statements = tokens_get_block(tokens)?;
+    return Ok(ComUnit::Ctrl(Ctrl::CtrlDef(CtrlDef::new(
+        fn_name, args, statements,
     ))));
 }
 fn tokens_match_err<'a>(tokens: &'a mut Vec<Token>, text: &'a str) -> Result<(), ErrMeg> {
@@ -153,7 +174,7 @@ fn tokens_get_name(tokens: &mut Vec<Token>) -> Result<Vec<char>, ErrMeg> {
     let token = match tokens_get_first(tokens) {
         Ok(token) => {
             if matches!(token.get_type(), TokenType::Name) {
-                token
+                token.clone()
             } else {
                 return Err(ErrMeg::new(token.pos.clone(), Err::Unmatched));
             }
@@ -172,22 +193,16 @@ fn tokens_get_first(tokens: &mut Vec<Token>) -> Result<&Token, ErrMeg> {
         return Err(ErrMeg::new(Pos::new(), crate::error::Err::Empty));
     }
 }
-fn get_space_size(tokens: &mut Vec<Token>) -> Result<usize, ErrMeg> {
-    let p_tokens = tokens as *mut Vec<Token>;
-    let token = tokens_get_first(tokens)?;
-    if matches!(token.get_type(), TokenType::Space) {
-        unsafe {
-            (*p_tokens).remove(0);
-        }
-        return Ok(token.get_text().len());
-    } else {
-        Ok(0)
-    }
-}
-fn tokens_get_eus(tokens: &mut Vec<Token>) -> Result<Vec<ComUnit>, ErrMeg> {
+fn tokens_get_block(tokens: &mut Vec<Token>) -> Result<Vec<ComUnit>, ErrMeg> {
+    tokens_match_err(tokens, "{")?;
     let mut ret = Vec::new();
-    while !tokens.is_empty() && !tokens_match_bool(tokens, "}") {
-        ret.push(com_unit(tokens)?);
+    while !tokens.is_empty() {
+        if !tokens_match_bool(tokens, "}") {
+            ret.push(com_unit(tokens)?);
+        } else {
+            tokens.remove(0);
+            break;
+        }
     }
     return Ok(ret);
 }
@@ -198,6 +213,7 @@ fn tokens_build_expr(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
     // 从tokens中构建exprs
     let mut may_fun = false;
     let mut fake_exprs = tokens_get_expr(tokens)?;
+
     let mut token_cache: Token = Token {
         text: Vec::new(),
         pos: Pos::new(),
@@ -218,19 +234,23 @@ fn tokens_build_expr(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
     }
 
     // 调用上古屎山
-    Ok(unsafe { build_exprs(&exprs) })
+    Ok(unsafe { build_exprs(&mut exprs) })
 }
 fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
     let mut get_data = true;
     let mut deep: usize = 0;
     let mut ret = Vec::new();
     let p_tokens = tokens as *mut Vec<Token>;
-    let mut token = &tokens[0];
+    let mut token = tokens[0].clone();
     'l: loop {
+        // println!(
+        //     "\nBegin loop:\n\tTokens: {:?}\n\tExprs: {:?}\n\tDeep: {}\n",
+        //     tokens, ret, deep
+        // );
         if tokens.len() <= 0 {
             break 'l;
         }
-        token = unsafe { &(*p_tokens)[0] };
+        token = unsafe { (*p_tokens)[0].clone() };
         if get_data {
             match token.get_type() {
                 TokenType::Name | TokenType::Num => {
@@ -272,7 +292,7 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                             continue 'l;
                         }
                     }
-                    if token.match_text(")") {
+                    if token.match_text("(") {
                         while tokens.len() > 0 {
                             let token = unsafe { &(*p_tokens)[0] };
                             tokens.remove(0);
@@ -282,6 +302,11 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                             }
                         }
                     }
+                    if token.match_text(")") {
+                        deep -= 1;
+                        tokens.remove(0);
+                        ret.push(token.clone())
+                    }
                     continue;
                 }
                 TokenType::Str | TokenType::Space | TokenType::Name | TokenType::Num => {
@@ -289,6 +314,10 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                 }
             }
         }
+        // println!(
+        //     "\nEnd loop:\n\tTokens: {:?}\n\tExprs: {:?}\n\tDeep: {}\n",
+        //     tokens, ret, deep
+        // );
     }
     if get_data {
         return Err(ErrMeg::new(token.pos.clone(), Err::MissVul));
@@ -317,7 +346,8 @@ fn expr_priotity(expr: &Expr) -> usize {
     match expr {
         Expr::Op(op_text) => {
             let fuck = [
-                vec!["(", ")"],
+                vec![" "],
+                vec!["(", ""],
                 vec!["!", "**"],
                 vec!["*", "/"],
                 vec!["+", "-"],
@@ -325,6 +355,7 @@ fn expr_priotity(expr: &Expr) -> usize {
                 vec![">", "<", ">=", "<="],
                 vec!["!=", "=="],
                 vec!["&", "&&", "|", "||", "^"],
+                vec![")"],
             ];
             for priotity in 0..fuck.len() {
                 let sub_fuck = &fuck[priotity];
@@ -334,90 +365,68 @@ fn expr_priotity(expr: &Expr) -> usize {
                     }
                 }
             }
+
             todo!()
         }
         _ => 0,
     }
 }
-unsafe fn build_exprs(exprs: &Vec<Expr>) -> Expr {
-    let mut priority_s = Vec::new();
-    for expr in exprs {
-        priority_s.push(expr_priotity(&expr));
-    }
-    // 解决该死的所有权
-    let mut exprs = exprs.clone();
-    let prio_ptr = &mut priority_s as *mut Vec<usize>;
-    let expr_ptr = &mut exprs as *mut Vec<Expr>;
-    // 闭包:提取表达式
-    let build_op2 = |atsp: usize| {
-        (*expr_ptr)[atsp - 1] = Expr::Eoe(
-            Box::new((*expr_ptr)[atsp - 1].clone()),
-            Box::new((*expr_ptr)[atsp].clone()),
-            Box::new((*expr_ptr)[atsp + 1].clone()),
-        );
-        (*expr_ptr).remove(atsp);
-        (*prio_ptr).remove(atsp);
-        (*expr_ptr).remove(atsp);
-        (*prio_ptr).remove(atsp);
-    };
-    let build_op1 = |atsp: usize| {
-        (*expr_ptr)[atsp - 1] = Expr::Oe(
-            Box::new((*expr_ptr)[atsp - 1].clone()),
-            Box::new((*expr_ptr)[atsp].clone()),
-        );
-        (*expr_ptr).remove(atsp);
-        (*prio_ptr).remove(atsp);
-    };
-    let mut bra_begin = 0;
-    // let mut bra_end = 0;
-    // 从低到高优先级遍历
-    for priority_index in 0..8 {
-        let mut index = 0;
-        let mut bra_deep = 0;
-
-        while index < (*priority_s).len() {
-            let priority = priority_s[index];
-
-            if priority == priority_index {
-                if exprs[index].is_left_part() {
-                    if bra_deep == 0 {
-                        // DANGERIOUS
-                        let more = exprs[index + 1..].to_vec();
-                        if more[0].is_right_part() {
-                            exprs[index] = Expr::Data(Vec::new())
+unsafe fn build_exprs(exprs: &mut Vec<Expr>) -> Expr {
+    let mut ret = Vec::new();
+    let mut ops = Vec::new();
+    // let mut exprs = exprs.clone();
+    while exprs.len() > 0 {
+        let expr = exprs[0].clone();
+        exprs.remove(0);
+        match expr {
+            Expr::Op(_) => {
+                if expr.is_not() {
+                    let _expr = exprs[0].clone();
+                    exprs.remove(0);
+                    ret.push(Expr::Oe(Box::new(expr), Box::new(_expr)));
+                } else if expr.is_left_part() {
+                    ret.push(build_exprs(exprs))
+                } else if expr.is_right_part() {
+                    break;
+                } else if ops.len() == 0 {
+                    ops.push(expr)
+                } else
+                /* ops.len() == 1*/
+                {
+                    ops.push(expr);
+                    // 尝试处理优先级问题
+                    while ops.len() > 1 {
+                        let last_p = expr_priotity(&ops[ops.len() - 2]);
+                        let this_p = expr_priotity(&ops[ops.len() - 1]);
+                        if last_p <= this_p {
+                            let len = ret.len();
+                            ret[len - 2] = Expr::Eoe(
+                                Box::new(ret[ret.len() - 2].clone()),
+                                Box::new(ops[ops.len() - 2].clone()),
+                                Box::new(ret[ret.len() - 1].clone()),
+                            );
+                            ret.remove(len - 1);
+                            ops.remove(ops.len() - 2);
                         } else {
-                            exprs[index] = build_exprs(&more);
-                        }
-                        priority_s[index] = 0;
-                        bra_begin = index;
-                    }
-                    bra_deep += 1;
-                } else if exprs[0].is_right_part() {
-                    if bra_deep == 0 {
-                        return exprs[0].clone();
-                    }
-                    //括号刚结束
-                    else if bra_deep == 1 {
-                        // 大回退
-                        while index != bra_begin {
-                            index -= 1;
-                            (*expr_ptr).remove(bra_begin + 1);
-                            (*prio_ptr).remove(bra_begin + 1);
+                            break;
                         }
                     }
-                    bra_deep -= 1;
-                } else if exprs[0].is_not() && bra_deep == 0 {
-                    build_op1(index);
-                    index -= 1;
-                } else if bra_deep == 0 {
-                    build_op2(index);
-                    index -= 1;
                 }
             }
-            index += 1;
+            _ => ret.push(expr),
         }
     }
-    return exprs[0].clone();
+    while ops.len() > 0 {
+        let len = ret.len();
+        ret[len - 2] = Expr::Eoe(
+            Box::new(ret[ret.len() - 2].clone()),
+            Box::new(ops[ops.len() - 1].clone()),
+            Box::new(ret[ret.len() - 1].clone()),
+        );
+        ret.remove(len - 1);
+        ops.remove(ops.len() - 1);
+    }
+    return ret[0].clone();
 }
-// 中文 a
+// 中文 aEoe
 // aaaaa

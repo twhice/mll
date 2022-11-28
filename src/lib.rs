@@ -34,3 +34,10 @@ pub fn parser_test() {
     let com_unit = core::parser(&mut tokens);
     println!("{:?}", com_unit)
 }
+pub fn err_test() {
+    let mut pos = core::Pos::new();
+    pos.set_line(114514);
+    pos.set_filename("filename".to_owned());
+    let fake_err = error::ErrMeg::new(pos, error::Err::UnknowKeyword);
+    println!("{}", fake_err)
+}

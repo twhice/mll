@@ -17,57 +17,79 @@ impl Set {
 }
 #[derive(Debug)]
 pub enum Ctrl {
-    Ctrl_if(CtrlIf),
-    Ctrl_pg(CtrlPg),
-    Ctrl_for(CtrlFor),
-    Ctrl_switch(CtrlSwitch),
-    Ctrl_return(CtrlReturn),
+    CtrlIf(CtrlIf),
+    CtrlDef(CtrlDef),
+    CtrlWhile(CtrlWhile),
+    CtrlSwitch(CtrlSwitch),
+    CtrlReturn(CtrlReturn),
 }
 #[derive(Debug)]
 pub struct CtrlIf {
     condition: Expr,
     if_statement: Vec<ComUnit>,
+    elifs: Vec<(Expr, Vec<ComUnit>)>,
     else_statement: Vec<ComUnit>,
 }
 
 impl CtrlIf {
-    pub fn new(condition: Expr, if_statement: Vec<ComUnit>, else_statement: Vec<ComUnit>) -> Self {
+    pub fn new(
+        condition: Expr,
+        if_statement: Vec<ComUnit>,
+        elifs: Vec<(Expr, Vec<ComUnit>)>,
+        else_statement: Vec<ComUnit>,
+    ) -> Self {
         Self {
             condition,
             if_statement,
+            elifs,
             else_statement,
         }
     }
 }
+
 #[derive(Debug)]
-pub struct CtrlPg {
-    fn_name: Option<Vec<char>>,
+pub struct CtrlDef {
+    fn_name: Vec<char>,
+    args: Vec<Vec<char>>,
     statement: Vec<ComUnit>,
 }
 
-impl CtrlPg {
-    pub fn new(fn_name: Option<Vec<char>>, statement: Vec<ComUnit>) -> Self {
-        Self { fn_name, statement }
+impl CtrlDef {
+    pub fn new(fn_name: Vec<char>, args: Vec<Vec<char>>, statement: Vec<ComUnit>) -> Self {
+        Self {
+            fn_name,
+            args,
+            statement,
+        }
     }
 }
 #[derive(Debug)]
-pub struct CtrlFor {
-    index_name: Vec<char>,
+pub struct CtrlWhile {
     condition: Expr,
-    work: Expr,
-    statement: Vec<ComUnit>,
+    statements: Vec<ComUnit>,
+}
+
+impl CtrlWhile {
+    pub fn new(condition: Expr, statements: Vec<ComUnit>) -> Self {
+        Self {
+            condition,
+            statements,
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct CtrlSwitch {
+    condition: Expr,
     cases: Vec<Vec<ComUnit>>,
 }
 
 impl CtrlSwitch {
-    pub fn new(cases: Vec<Vec<ComUnit>>) -> Self {
-        Self { cases }
+    pub fn new(condition: Expr, cases: Vec<Vec<ComUnit>>) -> Self {
+        Self { condition, cases }
     }
 }
+
 #[derive(Debug)]
 pub struct CtrlReturn {
     return_vul: Expr,
@@ -105,7 +127,7 @@ impl Expr {
     }
     pub fn is_not(&self) -> bool {
         if let Expr::Op(op) = self {
-            *op == "(".chars().collect::<Vec<char>>()
+            *op == "!".chars().collect::<Vec<char>>()
         } else {
             false
         }
