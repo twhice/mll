@@ -29,6 +29,8 @@ pub enum Err {
     Unmatched,
     Empty,
     NotVul,
+    MissBra,
+    MissVul,
 }
 impl Display for Err {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -41,6 +43,8 @@ impl Display for Err {
                 Err::Empty => "空",
                 Err::Unmatched => "不匹配",
                 Err::NotVul => "它不可以作为值",
+                Err::MissBra => "缺少括号",
+                Err::MissVul => "缺少一个值",
             },
             crate::lang::Language::English => todo!(),
         };

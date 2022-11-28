@@ -59,7 +59,7 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
             ret.push(collect_by_rule(
                 currten,
                 TokenType::Name,
-                &|c: char| -> bool { c.is_ascii_alphanumeric() || c == '_' },
+                &|c: char| -> bool { c.is_alphanumeric() || c == '_' },
             ))
         // Num
         } else if currten.is_ascii_digit() {

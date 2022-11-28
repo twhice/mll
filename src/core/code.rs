@@ -1,7 +1,10 @@
+use super::Token;
+#[derive(Debug)]
 pub enum ComUnit {
     Set(Vec<Set>),
     Ctrl(Ctrl),
 }
+#[derive(Debug)]
 pub struct Set {
     lv: Vec<char>,
     rv: Expr,
@@ -12,6 +15,7 @@ impl Set {
         Self { lv, rv }
     }
 }
+#[derive(Debug)]
 pub enum Ctrl {
     Ctrl_if(CtrlIf),
     Ctrl_pg(CtrlPg),
@@ -19,7 +23,7 @@ pub enum Ctrl {
     Ctrl_switch(CtrlSwitch),
     Ctrl_return(CtrlReturn),
 }
-
+#[derive(Debug)]
 pub struct CtrlIf {
     condition: Expr,
     if_statement: Vec<ComUnit>,
@@ -35,6 +39,7 @@ impl CtrlIf {
         }
     }
 }
+#[derive(Debug)]
 pub struct CtrlPg {
     fn_name: Option<Vec<char>>,
     statement: Vec<ComUnit>,
@@ -45,31 +50,15 @@ impl CtrlPg {
         Self { fn_name, statement }
     }
 }
+#[derive(Debug)]
 pub struct CtrlFor {
     index_name: Vec<char>,
-    begin: isize,
-    end: isize,
-    step_size: isize,
+    condition: Expr,
+    work: Expr,
     statement: Vec<ComUnit>,
 }
 
-impl CtrlFor {
-    pub fn new(
-        index_name: Vec<char>,
-        begin: isize,
-        end: isize,
-        step_size: isize,
-        statement: Vec<ComUnit>,
-    ) -> Self {
-        Self {
-            index_name,
-            begin,
-            end,
-            step_size,
-            statement,
-        }
-    }
-}
+#[derive(Debug)]
 pub struct CtrlSwitch {
     cases: Vec<Vec<ComUnit>>,
 }
@@ -79,6 +68,7 @@ impl CtrlSwitch {
         Self { cases }
     }
 }
+#[derive(Debug)]
 pub struct CtrlReturn {
     return_vul: Expr,
 }
@@ -89,9 +79,44 @@ impl CtrlReturn {
     }
 }
 
+#[derive(Clone, Debug)]
 pub enum Expr {
     Eoe(Box<Expr>, Box<Expr>, Box<Expr>),
-    Eo(Box<Expr>, Box<Expr>),
+    Eo(Box<Expr>, Vec<char>),
     Oe(Box<Expr>, Box<Expr>),
-    D(Vec<char>),
+    Data(Vec<char>),
+    Op(Vec<char>),
+    CallFn(Vec<char>, Vec<Vec<char>>),
+}
+impl Expr {
+    pub fn is_right_part(&self) -> bool {
+        if let Expr::Op(op) = self {
+            *op == ")".chars().collect::<Vec<char>>()
+        } else {
+            false
+        }
+    }
+    pub fn is_left_part(&self) -> bool {
+        if let Expr::Op(op) = self {
+            *op == "(".chars().collect::<Vec<char>>()
+        } else {
+            false
+        }
+    }
+    pub fn is_not(&self) -> bool {
+        if let Expr::Op(op) = self {
+            *op == "(".chars().collect::<Vec<char>>()
+        } else {
+            false
+        }
+    }
+}
+impl From<&Token> for Expr {
+    fn from(token: &Token) -> Self {
+        match token.get_type() {
+            super::TokenType::Name | super::TokenType::Num => Self::Data(token.get_text().clone()),
+            super::TokenType::Symbol => Self::Op(token.get_text().clone()),
+            super::TokenType::Str | super::TokenType::Space => todo!(),
+        }
+    }
 }

@@ -9,6 +9,7 @@ mod lexer;
 mod parser;
 
 pub use lexer::lexer;
+pub use parser::parser;
 #[derive(Clone)]
 pub struct Pos {
     filename: String,
@@ -52,7 +53,7 @@ pub struct Token {
     ttype: TokenType,
 }
 impl Token {
-    pub fn compare_text(&self, anstr: &str) -> bool {
+    pub fn match_text(&self, anstr: &str) -> bool {
         let anvec: Vec<char> = anstr.chars().collect();
         self.text.eq(&anvec)
     }
@@ -63,7 +64,6 @@ impl Token {
         self.ttype
     }
 }
-
 impl Display for Pos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}:{}", self.filename, self.line, self.row)

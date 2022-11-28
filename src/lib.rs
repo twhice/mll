@@ -1,9 +1,10 @@
 mod core;
 mod error;
 mod lang;
+
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
-pub fn test() {
+pub fn lexer_test() {
     println!(" 语法分析测试");
     println!("\n成功: ");
     let src = "pg { set awasome}";
@@ -23,4 +24,13 @@ pub fn r#loop() {
             Err(_) => todo!("终止"),
         }
     }
+}
+pub fn parser_test() {
+    let src = "set a=114+514*(1919+810)";
+    let mut base_pos = core::Pos::new();
+    base_pos.set_filename("parser-test".to_owned());
+    println!("{}", base_pos);
+    let mut tokens = core::lexer(src, &mut base_pos).unwrap();
+    let com_unit = core::parser(&mut tokens);
+    println!("{:?}", com_unit)
 }
