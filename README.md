@@ -1,54 +1,40 @@
-# Mindustry逻辑强化(MRH)
+# Mindustry逻辑语言(MLL)
 
 随着时代发展,传统逻辑已经无法满足开发者们对开发的需要
 
-由此,MRH应运而生
+由此,MLL应运而生
 
-## 什么是MRH?
+## 什么是MLL?
 
-MRH是一个"编译器",能够将MRH代码编译为Mindustry逻辑代码
+MLL是一个"编译器",能够将MLL代码编译为Mindustry逻辑代码
 
-## MRH相比传统逻辑有什么优势?
+## MLL相比传统逻辑有什么优势?
 
 传统逻辑类似汇编,只有很基础的一些方法
 
 很多数据结构,使用传统逻辑难以实现
 
-MRH能够把mhr具有高级特性的MRH代码编译为传统逻辑代码
+MLL能够把具有高级特性的MLL代码编译为传统逻辑代码
 
-## MRH增加了哪些特性?
+## MLL增加了哪些特性?
 
 ### 数组
 
-开发者可以设置一个定长数组,用来存放任意类型的数据
-#### MRH代码
+开发者可以设置一个定长数组,编译器会自动分配其所在的内存元/库
+#### MLL代码
 ```
 // 定义ax为长度为4的数组
-// 但是我更建议在内存创建(但是这样的数组只能存数字)
-set ax = arr(4)
 // 在内存创建
-set bx = new(4);
+set ax = new_arr(4)
+
 ```
 #### 逻辑代码
 ```
-op mul arrry_ax_jumpline array_ax_index 3
-op add @counter @counter arrry_ax_ju
-set array_ax_e3 array_ax_this
-set array_ax_this array_ax_e0
-set @counter ...
-set array_ax_e0 array_ax_this
-set array_ax_this array_ax_e1
-set @counter ...
-set array_ax_e1 array_ax_this
-set array_ax_this array_ax_e2
-set @counter ...
-set array_ax_e2 array_ax_this
-set array_ax_this array_ax_e3
-set @counter ...
+无
 
 ```
 ### 函数
-MRH的函数通过多处理器实现
+MLL的函数通过多处理器实现
 
 下面的代码是一个简单的函数调用的例子
 ```
@@ -57,215 +43,67 @@ pg{
     print(distance(ax,ay,bx,by))
     print_flush(message1)
 }
-pg distance{
+def distance(ax,ay,bx,by){
     return sqrt((ax-bx)**2+(ay-by)**2)
 }
 ```
-如果一个函数调用多次, 有两种解决方案:
+目前仅支持"同块函数"
 
-1. 编译器计算达到最大效率至少需要多少处理器
-
-2. (太麻烦删了)
-### 读取简化
-对Sensor命令的简化
-
-支持简写,加快开发速度
-
-#### 对照表
-
-MRH         传统逻辑
-
-ti          totalItem
-
-fi          firstItem
-
-tl          totalLiquids
-
-tp          totalPower
-
-ic          itemCapacity
-
-lc          LiquidsCapacity
-
-pc          powerCapacity
-
-
-
-pns         powerNetStored
-
-pnc         powerNetCapacity
-
-pni         powerNetIn
-
-pno         powerNetOut
-
-am          ammo
-
-ac          ammoCapacity
-
-hp          health
-
-hm          maxHealth
-
-ht          heat
-
-ef          effciency
-
-pg          progress
-
-ts          timescale
-
-rn          rotation
-
-x           x
-
-y           y
-
-sx          shootX
-
-sy          shootY
-
-si          shooting
-
-sz          size
-
-gg          dead
-
-rg          range
-
-bi          boosting
-
-mx          mineX
-
-my          mineY
-
-mi          mining
-
-sp          speed
-
-tm          team
-
-ty          type
-
-fl          flag
-
-cd          controlled
-
-cr          controller
-
-nm          name
-
-pc          payloadCount
-
-pt          payloadType
-
-ea          enabled
-
-cf          config
-
-cl          color
-
-#### MRH代码
-```
-set udead = gg in @unit
-// in是一个运算符!
-```
-#### 传统逻辑代码
-```
-TODO
-```
-### 复杂表达式
+### 表达式解析
 
 对原版op的强化
 
 支持复杂的表达式
 
-#### MRH代码
+支持运算符:
+1. 算术     +-*/% **(幂)
+2. 逻辑     && || & | ^ !
+3. 数学函数  (a)sin (a)cos (a)tan abs log log10 floor ceil sqrt rand
+4. 向量函数  angle noise
+#### MLL代码
 ```
 set x = 114 * (514 + 1919810)
+set r = rand(114514)
 ```
 #### 传统逻辑代码
 ```
 op add op_t0 514 1919810
 op mul x 114 op_t0
-```
-sin,cos,tan...
-rand.floor...
-等函数,会变成伪函数
-
-举例:
-#### MRH代码
-```
-set r = rand(114514)
-```
-#### 传统逻辑代码
-```
 op rand x 114514 0
 ```
 
-### 处理器协同
+## 未加入(计划加入)特性
 
-原版处理器算力低下
+### MSTD(MLL标准库) (v?)
 
-而多处理器协同,并不容易
+标准库,一些写好的方法,可以直接用
 
-MRH让这个困难简单一丢丢
+### 协同函数&动态库(v0.3-v0.4)
 
-#### MRH代码
-```
-pg{
-    write(cell1,0,1)
-    write(cell1,1,0)
-    write(cell1,2,1)
-    write(cell1,3,0)
-    write(cell1,4,1)
-    write(cell1,5,0)
-    write(cell1,6,1)
-    write(cell1,7,0)
-    write(cell1,8,1)
-}
-pg{
-    for i 0,3
-        for i 0,3
-            set data = read(cell1,i * 3 + j)
-            set ox = i * 30
-            set oy = j * 30
-            if data
-                draw_rect(ox,oy,30,30)
-    draw_flush(display1)
-}
-```
-#### 传统逻辑代码
-处理器1
-```
-write 1 cell1 0
-write 0 cell1 1
-write 1 cell1 2
-write 0 cell1 3
-write 1 cell1 4
-write 0 cell1 5
-write 1 cell1 6
-write 0 cell1 7
-write 1 cell1 8
+处理器调用专用处理器来执行函数
 
-```
-处理器2
-```
-set i 0
-jump 15 equal i 3
-set j 0
-jump 13 equal j 3
-op mul op_t0 i 3
-op add op_t1 i j
-read data cell1 op_t1
-op mul ox i 30
-op mul oy j 30
-jump 11 notEqual data 1
-draw rect ox oy 30 30 0 0
-op add j j 1
-set @counter 3
-op add i i 1
-set @counter 1
-drawflush display1
+### 完整原版特性(v0.2-v0.3)
 
-```
+单位绑定
+
+单位控制
+
+Get_link
+
+读取属性
+
+### 插入原版代码(v0.2)
+
+在MLL中插入原版代码,两种代码协同工作
+
+### 世界处理器特性(v0.5)
+
+世界处理器支持的语句
+
+### 迭代器(v0.2/v0.3)
+
+迭代数组中的元素
+
+### 万用数组(v0.2/v0.3)
+
+存放任何类数据的数组
