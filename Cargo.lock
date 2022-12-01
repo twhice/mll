@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "mindustry-rogic-hardening"
+name = "mindustry-logic-language"
 version = "0.1.0"
