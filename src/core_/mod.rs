@@ -10,6 +10,8 @@ mod parser;
 
 pub use lexer::lexer;
 pub use parser::parser;
+
+use crate::error::ErrMeg;
 #[derive(Clone)]
 pub struct Pos {
     filename: String,
@@ -29,6 +31,7 @@ impl Pos {
     }
     pub fn new_line(&mut self) {
         self.line += 1;
+        self.row = 1;
     }
     pub fn set_line(&mut self, line: usize) {
         self.line = line
@@ -39,14 +42,14 @@ impl Pos {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum TokenType {
+enum TokenType {
     Name,
     Num,
     Symbol,
     Str,
     Space,
 }
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Token {
     text: Vec<char>,
     pub pos: Pos,
@@ -64,6 +67,20 @@ impl Token {
         self.ttype
     }
 }
+impl Debug for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut all = String::from("{");
+        all += &format!("{:?}", self.ttype);
+        all += " \"";
+        for c in &self.text {
+            all += String::from(*c).as_str();
+        }
+        all += "\" ";
+        all += &self.pos.to_string();
+        all += "}";
+        write!(f, "{all}")
+    }
+}
 impl Display for Pos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}:{}", self.filename, self.line, self.row)
@@ -72,5 +89,29 @@ impl Display for Pos {
 impl Debug for Pos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
+    }
+}
+
+pub fn run(src: String, filename: &str) {
+    let mut tokens = Vec::new();
+    let mut base_pos = Pos {
+        filename: filename.to_owned(),
+        line: 1,
+        row: 1,
+    };
+    for line in src.lines() {
+        let token_: Result<Vec<Token>, ErrMeg> = lexer::lexer(line, &mut base_pos);
+        tokens.append(&mut token_.unwrap());
+        base_pos.new_line();
+    }
+    if super::DEBUG {
+        println!("Tokens: {:?}", tokens);
+    }
+    let mut com_units = Vec::new();
+    while tokens.len() > 0 {
+        com_units.push(parser(&mut tokens).unwrap())
+    }
+    if super::DEBUG {
+        println!("ComUnits: {:?}", com_units);
     }
 }

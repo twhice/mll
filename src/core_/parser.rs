@@ -22,7 +22,7 @@ use super::{Pos, Token, TokenType};
 pub fn parser(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     match com_unit(tokens) {
         Ok(cu) => Ok(cu),
-        Err(_) => todo!(),
+        Err(err) => panic!("{}", err),
     }
 }
 fn com_unit(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
@@ -40,7 +40,7 @@ fn com_unit(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     } else if keytoken.match_text("while") {
         ctrl_while(tokens)
     } else {
-        todo!()
+        return Err(ErrMeg::new(keytoken.pos.clone(), Err::UnknowSyntax));
     }
 }
 fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
@@ -59,17 +59,19 @@ fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
             break;
         }
     }
+
     return Ok(ComUnit::Set(sets));
 }
 fn ctrl_if(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     tokens_match_err(tokens, "if")?;
-    let condition = tokens_build_expr(tokens)?;
+    let condition = tokens_get_condition(tokens)?;
 
     let if_statements = tokens_get_block(tokens)?;
     let mut else_statements = Vec::new();
     let mut elifs = Vec::new();
     while tokens_match_bool(tokens, "elif") {
-        let condition = tokens_build_expr(tokens)?;
+        tokens.remove(0);
+        let condition = tokens_get_condition(tokens)?;
         let statements = tokens_get_block(tokens)?;
         elifs.push((condition, statements));
     }
@@ -89,7 +91,7 @@ fn ctrl_while(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     // skip sth
     tokens.remove(0);
 
-    let condition = tokens_build_expr(tokens)?;
+    let condition = tokens_get_condition(tokens)?;
 
     let statements = tokens_get_block(tokens)?;
     return Ok(ComUnit::Ctrl(Ctrl::CtrlWhile(CtrlWhile::new(
@@ -225,9 +227,13 @@ fn tokens_build_expr(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
             token_cache = fake_expr.clone();
             may_fun = true;
         } else if may_fun && fake_expr.match_text("(") {
+            exprs.pop();
             let fn_name = token_cache.get_text().clone();
-            let fn_args = tokens_get_fnargs(tokens)?;
+            let fn_args = tokens_get_fnargs(&mut fake_exprs)?;
             exprs.push(Expr::CallFn(fn_name, fn_args));
+        }
+        if fake_exprs.len() == 0 {
+            break;
         }
         fake_exprs.remove(0);
         exprs.push(fake_expr.into());
@@ -278,10 +284,10 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
         } else {
             match token.get_type() {
                 TokenType::Symbol => {
-                    if token.match_text("(") {
-                        deep += 1;
-                        continue 'l;
-                    }
+                    // if token.match_text("(") {
+                    //     deep += 1;
+                    //     continue 'l;
+                    // }
                     for op in [
                         "+", "-", "*", "/", ">", "<", ">=", "<=", "==", "!=", "!", "**", "&&", "||",
                     ] {
@@ -294,11 +300,11 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                     }
                     if token.match_text("(") {
                         while tokens.len() > 0 {
-                            let token = unsafe { &(*p_tokens)[0] };
+                            let token = unsafe { (*p_tokens)[0].clone() };
                             tokens.remove(0);
                             ret.push(token.clone());
                             if token.match_text(")") {
-                                break;
+                                continue 'l;
                             }
                         }
                     }
@@ -307,9 +313,9 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                         tokens.remove(0);
                         ret.push(token.clone())
                     }
-                    continue;
+                    break;
                 }
-                TokenType::Str | TokenType::Space | TokenType::Name | TokenType::Num => {
+                _ => {
                     break;
                 }
             }
@@ -340,6 +346,7 @@ fn tokens_get_fnargs(tokens: &mut Vec<Token>) -> Result<Vec<Vec<char>>, ErrMeg> 
             args.push(tokens_get_name(tokens)?)
         }
     }
+    tokens_match_err(tokens, ")")?;
     return Ok(args);
 }
 fn expr_priotity(expr: &Expr) -> usize {
@@ -426,7 +433,39 @@ unsafe fn build_exprs(exprs: &mut Vec<Expr>) -> Expr {
         ret.remove(len - 1);
         ops.remove(ops.len() - 1);
     }
+
     return ret[0].clone();
 }
-// 中文 aEoe
-// aaaaa
+const COMPARE_OPS: [&str; 6] = [">", "<", "==", "!=", ">=", "<="];
+fn tokens_get_condition(tokens: &mut Vec<Token>) -> Result<Condition, ErrMeg> {
+    let lexpr = tokens_build_expr(tokens)?;
+    match lexpr.clone() {
+        Expr::Eoe(le, op, re) => match *op {
+            Expr::Op(op) => {
+                for compare in COMPARE_OPS {
+                    if op == compare.chars().collect::<Vec<char>>() {
+                        return Ok(Condition::new(*le, op, *re));
+                    }
+                }
+            }
+            // 不可能的分支
+            _ => todo!(),
+        },
+        // 忽略
+        _ => {}
+    }
+    if tokens.len() != 0 {
+        for compare in COMPARE_OPS {
+            if tokens[0].match_text(compare) {
+                tokens.remove(0);
+                let rexpr = tokens_build_expr(tokens)?;
+                return Ok(Condition::new(lexpr, compare.chars().collect(), rexpr));
+            }
+        }
+    }
+    return Ok(Condition::new(
+        lexpr.clone(),
+        vec!['=', '='],
+        Expr::Data(vec!['1']),
+    ));
+}

@@ -4,7 +4,6 @@ use super::TokenType;
 
 use crate::error::{Err, ErrMeg};
 
-// 只支持处理一行!
 pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
     let mut src: Vec<char> = src.chars().collect();
     // let mut index = 0;
@@ -14,7 +13,6 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
     let p_pos: *mut Pos = pos as *mut Pos;
 
     let mut ret = Vec::new();
-    let mut line_begin = true;
     let collect_by_rule =
         |currten: char, tokentype: TokenType, rule: &dyn Fn(char) -> bool| -> Token {
             let _src = unsafe { &mut *p_src };
@@ -38,24 +36,11 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
         let currten = src[0];
 
         src.remove(0);
-        if line_begin && currten.is_whitespace() {
-            while matches!(src.first(), Some(..)) && src[0].is_ascii_whitespace() {
-                src.remove(0);
-                pos.pass();
-            }
-        } else {
-            line_begin = false
+        if currten == '#' {
+            break;
         }
-        if currten == '/' {
-            if matches!(src.first(), Some('/')) {
-                src.clear();
-            } else {
-                return Err(ErrMeg::new(pos.to_owned(), Err::CommentforError));
-            }
-        } else if currten == '#' {
-            return Err(ErrMeg::new(pos.to_owned(), Err::CommentforError));
         // Name
-        } else if currten.is_alphabetic() || currten == '_' {
+        else if currten.is_alphabetic() || currten == '_' {
             ret.push(collect_by_rule(
                 currten,
                 TokenType::Name,
