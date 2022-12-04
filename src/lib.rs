@@ -19,10 +19,10 @@ impl Argument {
         }
     }
 }
-pub const DEBUG: bool = true;
+pub const DEBUG: bool = false;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
-pub const RELEASE: bool = false;
+
 pub fn old_lexer_test() {
     println!(" 语法分析测试");
     println!("\n成功: ");

@@ -23,5 +23,5 @@ pub fn get_buildin_meg(meg: &Meg) -> &str {
     }
 }
 const MEG_HELP: &str =
-    "mll\t-f <输入文件> \t源文件路径\n\t[-o <输出文件>]\t输出文件路径\nmll -h \t获取帮助\n\t-v \t获取版本信息";
+    "mll\t-f <输入文件> \t源文件路径\n\t[-o <输出文件>]\t输出文件路径\nmll\t -h \t获取帮助\n\t-v \t获取版本信息";
 const MEG_VERSION: &str = "Minsustry-logic-language \nV0.0.0 By 异月(twhcie) \nLICENSE: GPLv3";

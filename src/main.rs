@@ -18,7 +18,7 @@ use mindustry_logic_language::*;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    if !RELEASE {
+    if DEBUG {
         if false {
             old_err_test();
             old_lexer_test();
