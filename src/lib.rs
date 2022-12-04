@@ -1,10 +1,28 @@
 mod core_;
 mod error;
+mod io;
 mod lang;
-pub use core_::run;
+pub struct Argument {
+    pub input_file_path: String,
+    pub output_file_path: String,
+    pub get_help: bool,
+    pub get_version: bool,
+}
+
+impl Argument {
+    pub fn new() -> Self {
+        Self {
+            input_file_path: String::new(),
+            output_file_path: String::new(),
+            get_help: false,
+            get_version: false,
+        }
+    }
+}
 pub const DEBUG: bool = true;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
+pub const RELEASE: bool = false;
 pub fn old_lexer_test() {
     println!(" 语法分析测试");
     println!("\n成功: ");
@@ -42,3 +60,8 @@ pub fn old_err_test() {
     let fake_err = error::ErrMeg::new(pos, error::Err::UnknowKeyword);
     println!("{}", fake_err)
 }
+pub use core_::run;
+pub use io::build_args;
+pub use io::Meg;
+pub use lang::get_buildin_meg;
+pub use lang::get_errmeg;

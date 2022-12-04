@@ -1,52 +1,37 @@
 use std::fmt::Debug;
 
-use super::Token;
-pub enum ComUnit {
-    Set(Vec<Set>),
-    Ctrl(Ctrl),
-}
-impl Debug for ComUnit {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ComUnit::Set(set) => write!(f, "{:?}", set),
-            ComUnit::Ctrl(ctrl) => write!(f, "{:?}", ctrl),
-        }
-    }
-}
+type T = Box<dyn Complite>;
 
+use super::{complier::Complite, Token};
 pub struct Set {
-    lv: Vec<char>,
-    rv: Expr,
+    Sets: Vec<(Vec<char>, Expr)>,
 }
 impl Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut lvts = String::new();
-        for c in &self.lv {
-            lvts += String::from(*c).as_str();
+        let mut ret = String::from("{");
+        for set in &self.Sets {
+            let mut name = String::new();
+            for c in &set.0 {
+                name += String::from(*c).as_str();
+            }
+            ret += &format!("[SET {name} = {rv:?} ]", rv = set.1)
         }
-        write!(f, "[SET {lvts} = {rv:?} ]", rv = self.rv)
+        ret += "}";
+        write!(f, "{}", ret)
     }
 }
 
 impl Set {
-    pub fn new(lv: Vec<char>, rv: Expr) -> Self {
-        Self { lv, rv }
+    pub fn new(Sets: Vec<(Vec<char>, Expr)>) -> Self {
+        Self { Sets }
     }
-}
-#[derive(Debug)]
-pub enum Ctrl {
-    CtrlIf(CtrlIf),
-    CtrlDef(CtrlDef),
-    CtrlWhile(CtrlWhile),
-    CtrlSwitch(CtrlSwitch),
-    CtrlReturn(CtrlReturn),
 }
 
 pub struct CtrlIf {
     condition: Condition,
-    if_statement: Vec<ComUnit>,
-    elifs: Vec<(Condition, Vec<ComUnit>)>,
-    else_statement: Vec<ComUnit>,
+    if_statement: Vec<T>,
+    elifs: Vec<(Condition, Vec<T>)>,
+    else_statement: Vec<T>,
 }
 impl Debug for CtrlIf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -67,9 +52,9 @@ impl Debug for CtrlIf {
 impl CtrlIf {
     pub fn new(
         condition: Condition,
-        if_statement: Vec<ComUnit>,
-        elifs: Vec<(Condition, Vec<ComUnit>)>,
-        else_statement: Vec<ComUnit>,
+        if_statement: Vec<T>,
+        elifs: Vec<(Condition, Vec<T>)>,
+        else_statement: Vec<T>,
     ) -> Self {
         Self {
             condition,
@@ -83,12 +68,12 @@ impl CtrlIf {
 #[derive(Debug)]
 pub struct CtrlDef {
     fn_name: Vec<char>,
-    args: Vec<Vec<char>>,
-    statement: Vec<ComUnit>,
+    args: Vec<Expr>,
+    statement: Vec<T>,
 }
 
 impl CtrlDef {
-    pub fn new(fn_name: Vec<char>, args: Vec<Vec<char>>, statement: Vec<ComUnit>) -> Self {
+    pub fn new(fn_name: Vec<char>, args: Vec<Expr>, statement: Vec<T>) -> Self {
         Self {
             fn_name,
             args,
@@ -99,11 +84,11 @@ impl CtrlDef {
 #[derive(Debug)]
 pub struct CtrlWhile {
     condition: Condition,
-    statements: Vec<ComUnit>,
+    statements: Vec<T>,
 }
 
 impl CtrlWhile {
-    pub fn new(condition: Condition, statements: Vec<ComUnit>) -> Self {
+    pub fn new(condition: Condition, statements: Vec<T>) -> Self {
         Self {
             condition,
             statements,
@@ -114,11 +99,11 @@ impl CtrlWhile {
 #[derive(Debug)]
 pub struct CtrlSwitch {
     condition: Expr,
-    cases: Vec<Vec<ComUnit>>,
+    cases: Vec<Vec<T>>,
 }
 
 impl CtrlSwitch {
-    pub fn new(condition: Expr, cases: Vec<Vec<ComUnit>>) -> Self {
+    pub fn new(condition: Expr, cases: Vec<Vec<T>>) -> Self {
         Self { condition, cases }
     }
 }
@@ -140,7 +125,7 @@ pub enum Expr {
     Oe(Box<Expr>, Box<Expr>),
     Data(Vec<char>),
     Op(Vec<char>),
-    CallFn(Vec<char>, Vec<Vec<char>>),
+    CallFn(Vec<char>, Vec<Expr>),
 }
 impl Expr {
     pub fn is_right_part(&self) -> bool {
@@ -192,12 +177,7 @@ impl Debug for Expr {
                 }
                 let mut args = String::new();
                 for arg in arg1 {
-                    let mut s = String::new();
-                    for c in arg {
-                        lvts += String::from(*c).as_str();
-                    }
-                    s += " ";
-                    args += s.as_str();
+                    args += &format!("{:?} ", arg);
                 }
                 write!(f, "{}({})", lvts, args)
             }
@@ -225,7 +205,7 @@ impl Condition {
         Self { lexpr, op, rexpr }
     }
 }
-fn cus_to_str(cus: &Vec<ComUnit>) -> String {
+fn cus_to_str(cus: &Vec<T>) -> String {
     let mut ret = String::from("{");
     for cu in cus {
         ret += &format!("{:?}", cu);

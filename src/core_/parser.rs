@@ -1,8 +1,8 @@
 /*
-ComUnit = Ctrl  / Set
-Ctrl    = "if" Expr (ComUnit / Block) [ 'else ' (ComUnit / Block) ]
-        = "for" Name Num "," Num[ "," Num] (ComUnit / Block)
-        = "switch" {case Num (ComUnit / Block)}
+Box<dyn Complite> = Ctrl  / Set
+Ctrl    = "if" Expr (Box<dyn Complite> / Block) [ 'else ' (Box<dyn Complite> / Block) ]
+        = "for" Name Num "," Num[ "," Num] (Box<dyn Complite> / Block)
+        = "switch" {case Num (Box<dyn Complite> / Block)}
         = "return" Expr
         = "pg" FnName "{" Block "}"
 Set     = "set" Name "=" Expr { "," Name "=" Expr}
@@ -14,18 +14,18 @@ Name    = ..
 Num     = ..
 */
 
+use super::code::*;
+use super::complier::Complite;
+use super::{Pos, Token, TokenType};
 use crate::error::{Err, ErrMeg};
 
-use super::code::*;
-use super::{Pos, Token, TokenType};
-
-pub fn parser(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+pub fn parser(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     match com_unit(tokens) {
         Ok(cu) => Ok(cu),
         Err(err) => panic!("{}", err),
     }
 }
-fn com_unit(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn com_unit(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     let keytoken = &tokens[0];
     if keytoken.match_text("set") {
         set(tokens)
@@ -40,10 +40,13 @@ fn com_unit(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     } else if keytoken.match_text("while") {
         ctrl_while(tokens)
     } else {
-        return Err(ErrMeg::new(keytoken.pos.clone(), Err::UnknowSyntax));
+        let fn_name = keytoken.get_text().clone();
+        tokens.remove(0);
+        let args = tokens_get_fnargs(tokens)?;
+        return Ok(Box::new(Expr::CallFn(fn_name, args)));
     }
 }
-fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn set(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     if tokens_match_bool(tokens, "set") {
         tokens.remove(0);
     } else {
@@ -54,15 +57,15 @@ fn set(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
         let name = tokens_get_name(tokens)?;
         tokens_match_err(tokens, "=")?;
         let vul = tokens_build_expr(tokens)?;
-        sets.push(Set::new(name, vul));
+        sets.push((name, vul));
         if !tokens_match_bool(tokens, ",") {
             break;
         }
     }
 
-    return Ok(ComUnit::Set(sets));
+    return Ok(Box::new(Set::new(sets)));
 }
-fn ctrl_if(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn ctrl_if(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     tokens_match_err(tokens, "if")?;
     let condition = tokens_get_condition(tokens)?;
 
@@ -79,14 +82,14 @@ fn ctrl_if(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
         tokens.remove(0);
         else_statements = tokens_get_block(tokens)?;
     }
-    return Ok(ComUnit::Ctrl(Ctrl::CtrlIf(CtrlIf::new(
+    return Ok(Box::new(CtrlIf::new(
         condition,
         if_statements,
         elifs,
         else_statements,
-    ))));
+    )));
 }
-fn ctrl_while(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn ctrl_while(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     // tokens_match_err(tokens, "while")?;
     // skip sth
     tokens.remove(0);
@@ -94,11 +97,9 @@ fn ctrl_while(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     let condition = tokens_get_condition(tokens)?;
 
     let statements = tokens_get_block(tokens)?;
-    return Ok(ComUnit::Ctrl(Ctrl::CtrlWhile(CtrlWhile::new(
-        condition, statements,
-    ))));
+    return Ok(Box::new(CtrlWhile::new(condition, statements)));
 }
-fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     // skip sth
     tokens.remove(0);
     // "condition"
@@ -109,34 +110,20 @@ fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
     while tokens_match_bool(tokens, "{") {
         cases.push(tokens_get_block(tokens)?);
     }
-    return Ok(ComUnit::Ctrl(Ctrl::CtrlSwitch(CtrlSwitch::new(
-        condition, cases,
-    ))));
+    return Ok(Box::new(CtrlSwitch::new(condition, cases)));
 }
-fn ctrl_return(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn ctrl_return(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     tokens_match_err(tokens, "return")?;
     let expr = tokens_build_expr(tokens)?;
-    return Ok(ComUnit::Ctrl(Ctrl::CtrlReturn(CtrlReturn::new(expr))));
+    return Ok(Box::new(CtrlReturn::new(expr)));
 }
-fn ctrl_def(tokens: &mut Vec<Token>) -> Result<ComUnit, ErrMeg> {
+fn ctrl_def(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     // tokens_match_err(tokens, "pg")?;
     tokens.remove(0);
     let fn_name = tokens_get_name(tokens)?;
-    tokens_match_err(tokens, "(")?;
-    let mut args = vec![];
-    let arg0 = tokens_tryget_name(tokens);
-    if let Some(arg0) = arg0 {
-        args.push(arg0.clone())
-    }
-    while tokens_match_bool(tokens, ",") {
-        tokens.remove(0);
-        args.push(tokens_get_name(tokens)?);
-    }
-    tokens_match_err(tokens, ")")?;
+    let args = tokens_get_fnargs(tokens)?;
     let statements = tokens_get_block(tokens)?;
-    return Ok(ComUnit::Ctrl(Ctrl::CtrlDef(CtrlDef::new(
-        fn_name, args, statements,
-    ))));
+    return Ok(Box::new(CtrlDef::new(fn_name, args, statements)));
 }
 fn tokens_match_err<'a>(tokens: &'a mut Vec<Token>, text: &'a str) -> Result<(), ErrMeg> {
     let token = tokens_get_first(tokens)?;
@@ -153,23 +140,6 @@ fn tokens_match_bool<'a>(tokens: &'a mut Vec<Token>, text: &'a str) -> bool {
         Err(_) => return false,
     };
     token.match_text(text)
-}
-fn tokens_tryget_name(tokens: &mut Vec<Token>) -> Option<Vec<char>> {
-    let p_tokens = tokens as *mut Vec<Token>;
-    let token = match tokens_get_first(tokens) {
-        Ok(token) => {
-            if matches!(token.get_type(), TokenType::Name) {
-                token
-            } else {
-                return None;
-            }
-        }
-        Err(_) => return None,
-    };
-    unsafe {
-        (*p_tokens).remove(0);
-    }
-    Some(token.get_text().clone())
 }
 fn tokens_get_name(tokens: &mut Vec<Token>) -> Result<Vec<char>, ErrMeg> {
     let p_tokens = tokens as *mut Vec<Token>;
@@ -195,7 +165,7 @@ fn tokens_get_first(tokens: &mut Vec<Token>) -> Result<&Token, ErrMeg> {
         return Err(ErrMeg::new(Pos::new(), crate::error::Err::Empty));
     }
 }
-fn tokens_get_block(tokens: &mut Vec<Token>) -> Result<Vec<ComUnit>, ErrMeg> {
+fn tokens_get_block(tokens: &mut Vec<Token>) -> Result<Vec<Box<dyn Complite>>, ErrMeg> {
     tokens_match_err(tokens, "{")?;
     let mut ret = Vec::new();
     while !tokens.is_empty() {
@@ -243,107 +213,69 @@ fn tokens_build_expr(tokens: &mut Vec<Token>) -> Result<Expr, ErrMeg> {
     Ok(unsafe { build_exprs(&mut exprs) })
 }
 fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
-    let mut get_data = true;
-    let mut deep: usize = 0;
-    let mut ret = Vec::new();
-    let p_tokens = tokens as *mut Vec<Token>;
-    let mut token = tokens[0].clone();
+    let mut expect_vul = true;
+    let mut ret: Vec<Token> = Vec::new();
     'l: loop {
-        // println!(
-        //     "\nBegin loop:\n\tTokens: {:?}\n\tExprs: {:?}\n\tDeep: {}\n",
-        //     tokens, ret, deep
-        // );
-        if tokens.len() <= 0 {
+        if tokens.len() == 0 {
             break 'l;
         }
-        token = unsafe { (*p_tokens)[0].clone() };
-        if get_data {
+        let token = tokens[0].clone();
+
+        if expect_vul {
             match token.get_type() {
-                TokenType::Name | TokenType::Num => {
-                    ret.push(token.clone());
+                TokenType::Name | TokenType::Num | TokenType::Str => {
                     tokens.remove(0);
-                    get_data = false;
+                    ret.push(token);
+                    expect_vul = false
                 }
                 TokenType::Symbol => {
-                    // 括号
-                    if token.match_text("(") {
-                        ret.push(token.clone());
+                    if token.match_text("!") || token.match_text("-") {
                         tokens.remove(0);
-                        deep += 1;
-                    } else if token.match_text("!") {
-                        ret.push(token.clone());
-                        tokens.remove(0);
+                        ret.push(token)
+                    } else if token.match_text("(") {
+                        ret.append(&mut tokens_get_expr(tokens)?);
+                        expect_vul = false;
+                        if let Err(err) = tokens_match_err(tokens, ")") {
+                            return Err(ErrMeg::new(err.pos, Err::MissBra));
+                        }
                     } else {
-                        return Err(ErrMeg::new(token.pos.clone(), Err::NotVul));
+                        return Err(ErrMeg::new(token.pos, Err::MissVul));
                     }
                 }
-                TokenType::Str | TokenType::Space => {
-                    return Err(ErrMeg::new(token.pos.clone(), Err::NotVul))
-                }
+                TokenType::Space => todo!(),
             }
         } else {
             match token.get_type() {
                 TokenType::Symbol => {
-                    // if token.match_text("(") {
-                    //     deep += 1;
-                    //     continue 'l;
-                    // }
-                    for op in [
-                        "+", "-", "*", "/", ">", "<", ">=", "<=", "==", "!=", "!", "**", "&&", "||",
-                    ] {
-                        if token.match_text(op) {
-                            ret.push(token.clone());
-                            tokens.remove(0);
-                            get_data = true;
-                            continue 'l;
+                    if expr_priotity(&(&token).into()) != 0 {
+                        if token.match_text("!") {
+                            return Err(ErrMeg::new(token.pos, Err::NotVul));
                         }
-                    }
-                    if token.match_text("(") {
-                        while tokens.len() > 0 {
-                            let token = unsafe { (*p_tokens)[0].clone() };
-                            tokens.remove(0);
-                            ret.push(token.clone());
-                            if token.match_text(")") {
-                                continue 'l;
-                            }
-                        }
-                    }
-                    if token.match_text(")") {
-                        deep -= 1;
                         tokens.remove(0);
-                        ret.push(token.clone())
+                        ret.push(token);
+                        expect_vul = true
+                    } else {
+                        break;
                     }
-                    break;
                 }
-                _ => {
-                    break;
-                }
+                _ => break,
             }
         }
-        // println!(
-        //     "\nEnd loop:\n\tTokens: {:?}\n\tExprs: {:?}\n\tDeep: {}\n",
-        //     tokens, ret, deep
-        // );
     }
-    if get_data {
-        return Err(ErrMeg::new(token.pos.clone(), Err::MissVul));
-    }
-    if deep != 0 {
-        return Err(ErrMeg::new(token.pos.clone(), Err::MissBra));
-    }
-
     return Ok(ret);
 }
-fn tokens_get_fnargs(tokens: &mut Vec<Token>) -> Result<Vec<Vec<char>>, ErrMeg> {
+fn tokens_get_fnargs(tokens: &mut Vec<Token>) -> Result<Vec<Expr>, ErrMeg> {
     // let fn_name = tokens_get_name(tokens)?;
     tokens_match_err(tokens, "(")?;
     let mut args = Vec::new();
-    let arg0 = tokens_tryget_name(tokens);
-    if let Some(arg0) = arg0 {
-        args.push(arg0);
+    let arg0 = tokens_build_expr(tokens);
+
+    if let Ok(arg) = arg0 {
+        // let arg0 = arg0.get_text().clone();
+        args.push(arg);
         while tokens_match_bool(tokens, ",") {
             tokens.remove(0);
-            args.push(tokens_get_name(tokens)?)
+            args.push(tokens_build_expr(tokens)?);
         }
     }
     tokens_match_err(tokens, ")")?;
@@ -354,7 +286,7 @@ fn expr_priotity(expr: &Expr) -> usize {
         Expr::Op(op_text) => {
             let fuck = [
                 vec![" "],
-                vec!["(", ""],
+                // vec!["(", ""],
                 vec!["!", "**"],
                 vec!["*", "/"],
                 vec!["+", "-"],
@@ -362,7 +294,7 @@ fn expr_priotity(expr: &Expr) -> usize {
                 vec![">", "<", ">=", "<="],
                 vec!["!=", "=="],
                 vec!["&", "&&", "|", "||", "^"],
-                vec![")"],
+                // vec![")"],
             ];
             for priotity in 0..fuck.len() {
                 let sub_fuck = &fuck[priotity];
@@ -373,7 +305,7 @@ fn expr_priotity(expr: &Expr) -> usize {
                 }
             }
 
-            todo!()
+            0
         }
         _ => 0,
     }

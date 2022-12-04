@@ -48,11 +48,27 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
             ))
         // Num
         } else if currten.is_ascii_digit() {
-            ret.push(collect_by_rule(
-                currten,
-                TokenType::Num,
-                &|c: char| -> bool { c.is_ascii_digit() },
-            ))
+            let base_token = collect_by_rule(currten, TokenType::Num, &|c: char| -> bool {
+                c.is_ascii_digit()
+            });
+
+            if src.len() != 0 && src[0] == '.' {
+                let currten = src[0];
+                src.remove(0);
+
+                let ano_token = collect_by_rule(currten, TokenType::Num, &|c: char| -> bool {
+                    c.is_ascii_digit()
+                });
+                let mut text = base_token.text;
+                text.append(&mut ano_token.get_text().clone());
+                ret.push(Token {
+                    text,
+                    pos: base_token.pos,
+                    ttype: TokenType::Num,
+                })
+            } else {
+                ret.push(base_token);
+            }
         }
         // Str
         else if currten == '"' {

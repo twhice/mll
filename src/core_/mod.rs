@@ -6,6 +6,7 @@ use std::fmt::{Debug, Display};
 mod code;
 mod complier;
 mod lexer;
+mod linker;
 mod parser;
 
 pub use lexer::lexer;
@@ -42,7 +43,7 @@ impl Pos {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum TokenType {
+pub enum TokenType {
     Name,
     Num,
     Symbol,
@@ -92,7 +93,7 @@ impl Debug for Pos {
     }
 }
 
-pub fn run(src: String, filename: &str) {
+pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
     let mut tokens = Vec::new();
     let mut base_pos = Pos {
         filename: filename.to_owned(),
@@ -100,8 +101,8 @@ pub fn run(src: String, filename: &str) {
         row: 1,
     };
     for line in src.lines() {
-        let token_: Result<Vec<Token>, ErrMeg> = lexer::lexer(line, &mut base_pos);
-        tokens.append(&mut token_.unwrap());
+        let mut token_ = lexer::lexer(line, &mut base_pos)?;
+        tokens.append(&mut token_);
         base_pos.new_line();
     }
     if super::DEBUG {
@@ -109,9 +110,10 @@ pub fn run(src: String, filename: &str) {
     }
     let mut com_units = Vec::new();
     while tokens.len() > 0 {
-        com_units.push(parser(&mut tokens).unwrap())
+        com_units.push(parser(&mut tokens)?)
     }
     if super::DEBUG {
         println!("ComUnits: {:?}", com_units);
     }
+    Ok(())
 }
