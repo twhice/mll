@@ -35,7 +35,7 @@ fn main() -> ExitCode {
             }
         };
 
-        match run(src, "test2.mll") {
+        match run(src, "test2.mll", DEBUG) {
             Ok(_) => {}
             Err(err) => {
                 println!("{}", err);
@@ -57,6 +57,7 @@ fn main() -> ExitCode {
         } else {
             let inf = argument.input_file_path.clone();
             // let outf = argument.output_file_path.clone();
+            let debug_meg = argument.show_debug_meg;
             let src = match std::fs::read_to_string(argument.input_file_path.clone()) {
                 Ok(src) => src,
                 Err(err) => {
@@ -65,7 +66,7 @@ fn main() -> ExitCode {
                 }
             };
             // let mut sentens: Vec<Vec<String>> = Vec::new();
-            match run(src, &inf) {
+            match run(src, &inf, debug_meg) {
                 Ok(_) => {}
                 Err(err) => {
                     println!("{}", err);

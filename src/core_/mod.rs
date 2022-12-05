@@ -98,7 +98,7 @@ impl PartialEq<Pos> for Pos {
     }
 }
 
-pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
+pub fn run(src: String, filename: &str, debug_meg: bool) -> Result<(), ErrMeg> {
     let mut tokens = Vec::new();
     let mut base_pos = Pos {
         filename: filename.to_owned(),
@@ -111,7 +111,7 @@ pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
         tokens.append(&mut token_);
         base_pos.new_line();
     }
-    if super::DEBUG {
+    if debug_meg {
         println!("Tokens: {:?}", tokens);
     }
     let mut com_units = Vec::new();
@@ -131,7 +131,7 @@ pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
             }
         })
     }
-    if super::DEBUG {
+    if debug_meg {
         println!("ComUnits: {:?}", com_units);
     }
     Ok(())

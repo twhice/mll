@@ -5,6 +5,7 @@ mod lang;
 pub struct Argument {
     pub input_file_path: String,
     pub output_file_path: String,
+    pub show_debug_meg: bool,
     pub get_help: bool,
     pub get_version: bool,
 }
@@ -14,12 +15,13 @@ impl Argument {
         Self {
             input_file_path: String::new(),
             output_file_path: String::new(),
+            show_debug_meg: false,
             get_help: false,
             get_version: false,
         }
     }
 }
-pub const DEBUG: bool = true;
+pub const DEBUG: bool = false;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
 

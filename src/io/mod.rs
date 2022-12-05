@@ -46,6 +46,8 @@ pub fn build_args() -> Result<Argument, Err> {
             } else {
                 return Err(Err::IoMissArg);
             }
+        } else if match_text(&arg, "-d") {
+            ret.show_debug_meg = true;
         } else {
             return Err(Err::IoUnknowArg);
         }
