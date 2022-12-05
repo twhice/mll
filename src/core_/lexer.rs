@@ -104,6 +104,20 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
         } else if currten.is_ascii_punctuation() {
             let c_next = src.first();
             let temp = match currten {
+                '>' => {
+                    if matches!(c_next, Some('=')) {
+                        ">="
+                    } else {
+                        ">"
+                    }
+                }
+                '<' => {
+                    if matches!(c_next, Some('=')) {
+                        "<="
+                    } else {
+                        "<"
+                    }
+                }
                 '+' => {
                     if matches!(c_next, Some('=')) {
                         "+="

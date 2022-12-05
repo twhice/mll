@@ -22,7 +22,7 @@ pub struct Pos {
 impl Pos {
     pub fn new() -> Self {
         Self {
-            filename: "114514.tl".to_owned(),
+            filename: "未知位置".to_owned(),
             line: 1,
             row: 1,
         }
@@ -92,6 +92,11 @@ impl Debug for Pos {
         write!(f, "{}", self.to_string())
     }
 }
+impl PartialEq<Pos> for Pos {
+    fn eq(&self, other: &Pos) -> bool {
+        self.filename == other.filename && self.line == other.line && self.row == other.row
+    }
+}
 
 pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
     let mut tokens = Vec::new();
@@ -100,6 +105,7 @@ pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
         line: 1,
         row: 1,
     };
+    let lines = src.lines().collect::<Vec<&str>>();
     for line in src.lines() {
         let mut token_ = lexer::lexer(line, &mut base_pos)?;
         tokens.append(&mut token_);
@@ -110,7 +116,20 @@ pub fn run(src: String, filename: &str) -> Result<(), ErrMeg> {
     }
     let mut com_units = Vec::new();
     while tokens.len() > 0 {
-        com_units.push(parser(&mut tokens)?)
+        com_units.push(match parser(&mut tokens) {
+            Ok(ok) => ok,
+            Err(err) => {
+                let mut err_pos = Pos::new();
+                if err.pos == Pos::new() {
+                    err_pos.line = lines.len();
+                    err_pos.row = lines[lines.len() - 1].len();
+                    err_pos.filename = filename.to_owned();
+                } else {
+                    err_pos = err.pos;
+                }
+                return Err(ErrMeg::new(err_pos, err.err));
+            }
+        })
     }
     if super::DEBUG {
         println!("ComUnits: {:?}", com_units);

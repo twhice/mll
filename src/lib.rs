@@ -19,7 +19,7 @@ impl Argument {
         }
     }
 }
-pub const DEBUG: bool = false;
+pub const DEBUG: bool = true;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
 

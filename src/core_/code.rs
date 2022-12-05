@@ -189,6 +189,7 @@ impl From<&Token> for Expr {
         match token.get_type() {
             super::TokenType::Name | super::TokenType::Num => Self::Data(token.get_text().clone()),
             super::TokenType::Symbol => Self::Op(token.get_text().clone()),
+            super::TokenType::Str => Self::Data(token.get_text().clone()),
             _ => todo!(),
         }
     }

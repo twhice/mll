@@ -26,7 +26,7 @@ fn main() -> ExitCode {
             old_parser_test();
         }
         let src = match std::fs::read_to_string(
-            "/home/twhicer/code/mindustry-logic-language/src/io/test.mll",
+            "/home/twhicer/code/mindustry-logic-language/src/io/test2.mll",
         ) {
             Ok(src) => src,
             Err(err) => {
@@ -35,7 +35,7 @@ fn main() -> ExitCode {
             }
         };
 
-        match run(src, "test.mll") {
+        match run(src, "test2.mll") {
             Ok(_) => {}
             Err(err) => {
                 println!("{}", err);
@@ -66,7 +66,7 @@ fn main() -> ExitCode {
             };
             // let mut sentens: Vec<Vec<String>> = Vec::new();
             match run(src, &inf) {
-                Ok(_) => todo!(),
+                Ok(_) => {}
                 Err(err) => {
                     println!("{}", err);
                     return ExitCode::FAILURE;
@@ -74,6 +74,10 @@ fn main() -> ExitCode {
             };
         }
     }
-
     return ExitCode::SUCCESS;
+    // run对ERR::EMPTY的处理 OK
+    // expr和def对fn_args函数错误返回的处理 OK
+    // ERR::UNMATCH 的转化 OK
+    // 表达式解析Debug
+    // 代码生成
 }

@@ -4,7 +4,7 @@ use crate::{core_::Pos, lang::get_errmeg};
 
 pub struct ErrMeg {
     pub pos: Pos,
-    err: Err,
+    pub err: Err,
 }
 impl ErrMeg {
     pub fn new(pos: Pos, err: Err) -> Self {
@@ -22,19 +22,29 @@ impl Debug for ErrMeg {
     }
 }
 pub enum Err {
+    Empty,
+
     UnknownEscapeCharacter,
     UnknowSymbol,
     UnknowKeyword,
+    UnknowSyntax,
     Unmatched,
-    Empty,
+
     NotVul,
+    NotName,
+
     MissBra,
     MissVul,
+    MissName,
 
-    IoMissArg,
-    IoUnknowArg,
+    UseSet,
+    UseDef,
+    UseBlock,
+    UseCallFn,
 
     IoNoArg,
+    IoMissArg,
+    IoUnknowArg,
     IoTooMuchArg,
 }
 impl Display for Err {
