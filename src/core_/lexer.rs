@@ -107,6 +107,8 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 '>' => {
                     if matches!(c_next, Some('=')) {
                         ">="
+                    } else if matches!(c_next, Some('>')) {
+                        ">>"
                     } else {
                         ">"
                     }
@@ -114,6 +116,8 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 '<' => {
                     if matches!(c_next, Some('=')) {
                         "<="
+                    } else if matches!(c_next, Some('<')) {
+                        "<<"
                     } else {
                         "<"
                     }
@@ -144,6 +148,8 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 '/' => {
                     if matches!(c_next, Some('=')) {
                         "/="
+                    } else if matches!(c_next, Some('/')) {
+                        "//"
                     } else {
                         "/"
                     }
@@ -173,14 +179,14 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                     if matches!(c_next, Some('&')) {
                         "&&"
                     } else {
-                        return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol));
+                        "&"
                     }
                 }
                 '|' => {
                     if matches!(c_next, Some('|')) {
                         "||"
                     } else {
-                        return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol));
+                        "|"
                     }
                 }
                 '(' => "(",
@@ -188,6 +194,7 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 '{' => "{",
                 '}' => "}",
                 '.' => ".",
+                '^' => "^",
                 _ => return Err(ErrMeg::new(pos.to_owned(), Err::UnknowSymbol)),
             };
             if temp.len() == 2 {

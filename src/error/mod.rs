@@ -46,6 +46,8 @@ pub enum Err {
     IoMissArg,
     IoUnknowArg,
     IoTooMuchArg,
+
+    None,
 }
 impl Display for Err {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

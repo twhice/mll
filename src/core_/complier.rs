@@ -1,13 +1,15 @@
+use super::abi::*;
 use super::code::*;
 use std::fmt::Debug;
 /*
     代码生成部分
 */
+type Codes = Vec<LogicCode>;
 pub trait Complite
 where
     Self: Debug,
 {
-    fn compliet(&self);
+    fn compliet(&self) -> Codes;
 }
 /*
 if 条件     -> jump 条件取反 跳到if块最后一行的下一行
@@ -18,7 +20,7 @@ jump always 最后块后一行
 
 */
 impl Complite for CtrlIf {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
@@ -27,7 +29,7 @@ while 条件  ->jump 条件取反
 块最后一行加上jump always 判定行
 */
 impl Complite for CtrlWhile {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
@@ -38,7 +40,7 @@ impl Complite for CtrlWhile {
 逐行翻译语句
 */
 impl Complite for CtrlDef {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
@@ -46,22 +48,22 @@ impl Complite for CtrlDef {
 计算后接的表达式,拷贝到glb_return
  */
 impl Complite for CtrlReturn {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
 impl Complite for CtrlSwitch {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
 impl Complite for Expr {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }
 impl Complite for Set {
-    fn compliet(&self) {
+    fn compliet(&self) -> Codes {
         todo!()
     }
 }

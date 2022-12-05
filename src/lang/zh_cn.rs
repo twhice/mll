@@ -20,6 +20,7 @@ pub fn get_errmeg(error: &Err) -> String {
         Err::IoMissArg | Err::IoNoArg => "缺少参数 \n输入参数-h以寻求帮助",
         Err::IoTooMuchArg => "过多参数 \n输入参数-h以寻求帮助",
         Err::IoUnknowArg => "未知参数 \n输入参数-h以寻求帮助",
+        Err::None => "嗯哼哼哼啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊",
     })
     .to_owned();
 }
