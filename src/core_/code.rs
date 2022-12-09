@@ -67,13 +67,13 @@ impl CtrlIf {
 
 #[derive(Debug)]
 pub struct CtrlDef {
-    fn_name: Vec<char>,
-    args: Vec<Expr>,
-    statement: Vec<T>,
+    pub fn_name: Vec<char>,
+    pub args: Vec<Vec<char>>,
+    pub statement: Vec<T>,
 }
 
 impl CtrlDef {
-    pub fn new(fn_name: Vec<char>, args: Vec<Expr>, statement: Vec<T>) -> Self {
+    pub fn new(fn_name: Vec<char>, args: Vec<Vec<char>>, statement: Vec<T>) -> Self {
         Self {
             fn_name,
             args,
@@ -83,8 +83,8 @@ impl CtrlDef {
 }
 #[derive(Debug)]
 pub struct CtrlWhile {
-    condition: Condition,
-    statements: Vec<T>,
+    pub condition: Condition,
+    pub statements: Vec<T>,
 }
 
 impl CtrlWhile {

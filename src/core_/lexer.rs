@@ -163,7 +163,11 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
                 }
                 '=' => {
                     if matches!(c_next, Some('=')) {
-                        "=="
+                        if src.len() >= 2 && src[1] == '=' {
+                            "==="
+                        } else {
+                            "=="
+                        }
                     } else {
                         "="
                     }

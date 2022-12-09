@@ -54,3 +54,14 @@ impl Display for Err {
         write!(f, "{}", get_errmeg(self))
     }
 }
+pub enum CTErr {
+    UnknowFn(Vec<char>),
+    DefinDef(Vec<char>, Vec<char>),
+    ProcessTooLong,
+    CallFninDef(Vec<char>),
+}
+impl CTErr {
+    pub fn solve(&self) {
+        super::lang::cte_solve(self)
+    }
+}

@@ -2,6 +2,8 @@ use std::fmt::{Debug, Display};
 
 use crate::error::Err;
 
+use super::code::Expr;
+
 type Name = Vec<char>;
 pub enum LogicCode {
     Set(Name, Name),
@@ -57,6 +59,14 @@ pub enum LogicCode {
     op acos result a b
     op atan result a b
      */
+    Op(Op, Name, Name, Name),
+}
+impl LogicCode {
+    pub fn change_jump_target(&mut self, new_target: usize) {
+        if let LogicCode::Jump(_, o, l, r) = self {
+            *self = LogicCode::Jump(new_target, *o, l.clone(), r.clone())
+        }
+    }
 }
 #[derive(Clone, Copy)]
 pub enum Condition {
@@ -241,8 +251,22 @@ impl From<Vec<char>> for Op {
             Self::Abs
         } else if match_text("&&") {
             Self::And
+        } else if match_text("===") {
+            Self::StrictEqual
+        } else if match_text("==") {
+            Self::Equal
         } else {
             todo!()
         };
+    }
+}
+impl TryFrom<Expr> for Op {
+    type Error = Err;
+
+    fn try_from(value: Expr) -> Result<Self, Self::Error> {
+        match value {
+            Expr::Op(vec) => Ok(vec.into()),
+            _ => Err(Err::None),
+        }
     }
 }

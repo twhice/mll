@@ -129,13 +129,13 @@ fn ctrl_def(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     // tokens_match_err(tokens, "pg")?;
     tokens.remove(0);
     let fn_name = tokens_get_name(tokens)?;
-    let mut get_fn_args = || -> Result<Vec<Expr>, ErrMeg> {
+    let mut get_fn_args = || -> Result<Vec<Vec<char>>, ErrMeg> {
         tokens_match_err(tokens, "(")?;
-        let mut args: Vec<Expr> = Vec::new();
+        let mut args: Vec<Vec<char>> = Vec::new();
         let mut can_break = true;
         while tokens.len() != 0 {
             if matches!(tokens[0].get_type(), TokenType::Name) {
-                args.push((&tokens[0]).into());
+                args.push(tokens[0].get_text().clone());
                 tokens.remove(0);
                 can_break = true;
                 if tokens_match_bool(tokens, ",") {
