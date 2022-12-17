@@ -110,7 +110,7 @@ impl CtrlSwitch {
 
 #[derive(Debug)]
 pub struct CtrlReturn {
-    return_vul: Expr,
+    pub return_vul: Expr,
 }
 
 impl CtrlReturn {
@@ -196,9 +196,9 @@ impl From<&Token> for Expr {
 }
 #[derive(Debug, Clone)]
 pub struct Condition {
-    lexpr: Expr,
-    op: Vec<char>,
-    rexpr: Expr,
+    pub lexpr: Expr,
+    pub op: Vec<char>,
+    pub rexpr: Expr,
 }
 
 impl Condition {

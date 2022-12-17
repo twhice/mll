@@ -1,11 +1,10 @@
 use crate::error::CTErr;
 
-use super::abi::*;
-use super::code::*;
+use super::{abi::*, code::*};
 static mut OP_ID: usize = 0;
 static mut PC: usize = 0;
-static mut shard: Vec<Vec<char>> = Vec::new();
-static mut defing: Option<Vec<char>> = None;
+static mut SHARD: Vec<Vec<char>> = Vec::new();
+static mut DEFING: Option<Vec<char>> = None;
 // 函数名 参数长 PC 有无返回值 映射
 static mut FNS: Vec<(Vec<char>, usize, usize, bool)> = Vec::new();
 
@@ -59,10 +58,10 @@ impl Complite for CtrlDef {
         println!("Called a functin that filled with bug.");
         unsafe {
             // 注册定义函数状态
-            if let Some(fnindef) = &defing {
+            if let Some(fnindef) = &DEFING {
                 CTErr::DefinDef(fnindef.to_owned(), self.fn_name.clone()).solve();
             } else {
-                defing = Some(self.fn_name.clone());
+                DEFING = Some(self.fn_name.clone());
             }
         }
         let mut temp = Codes::new();
@@ -79,15 +78,16 @@ impl Complite for CtrlDef {
             // 储存函数定义
             FNS.push((fn_name, self.args.len(), PC, have_ret));
             // 设置映射
-            shard = self.args.clone();
-        }
-        for cu in &self.statement {
-            // 编译并链接
-            temp.append(&mut link(cu.compliet()));
-        }
-        unsafe {
-            PC += temp.len();
-            defing = None;
+            SHARD = self.args.clone();
+
+            for cu in &self.statement {
+                // 链接
+                let ccu = cu.compliet();
+                PC += ccu.len();
+                temp.append(&mut cu.compliet());
+            }
+
+            DEFING = None;
         }
 
         return temp;
@@ -98,7 +98,22 @@ impl Complite for CtrlDef {
  */
 impl Complite for CtrlReturn {
     fn compliet(&self) -> Codes {
-        todo!()
+        let mut retv = Codes::new();
+        complie_vul(&mut retv, &self.return_vul);
+        // 忽略空值
+        if retv.len() == 1 {
+            if let LogicCode::Set(_, r) = &retv[0] {
+                if r == &vec![' '] {
+                    // 忽略
+                    return Vec::new();
+                }
+            }
+        }
+        unsafe {
+            // 增加计数器
+            PC += retv.len();
+        }
+        return retv;
     }
     fn is_ctrl_return(&self) -> bool {
         true
@@ -139,12 +154,12 @@ impl Complite for Expr {
                 temp
             }
             Expr::Data(v) => unsafe {
-                for shar_id in 0..shard.len() {
-                    let shar = &shard[shar_id];
+                for shar_id in 0..SHARD.len() {
+                    let shar = &SHARD[shar_id];
                     // 是映射
                     if v == shar {
                         // 断言获取函数名
-                        if let Some(fn_name) = &defing {
+                        if let Some(fn_name) = &DEFING {
                             let mut v = fn_name.clone();
                             v.append(&mut format!("_arg_{}", shar_id).chars().collect());
                             return vec![LogicCode::Set(alloc_new_id(), v)];
@@ -249,7 +264,7 @@ impl Complite for Expr {
                         // 名称 与 参数长均相等->确定函数
                         if *fn_name == func.0 && args.len() == func.1 {
                             // 避免递归
-                            if let Some(fnn) = &defing {
+                            if let Some(fnn) = &DEFING {
                                 if fnn == fn_name {
                                     CTErr::CallFninDef(fn_name.clone()).solve()
                                 }
@@ -332,17 +347,26 @@ fn empty_vul() -> Vec<char> {
 fn i_vul(vul: &str) -> Vec<char> {
     vul.chars().collect()
 }
-// 链接 局部跳转转化为全局跳转
-fn link(mut local_codes: Codes) -> Codes {
-    for lc_id in 0..local_codes.len() {
-        if let LogicCode::Jump(target, ..) = local_codes[lc_id] {
-            unsafe {
-                local_codes[lc_id].change_jump_target(target + PC);
-            }
+fn get_condition(mut temp: &mut Codes, condition: &super::code::Condition) -> LogicCode {
+    // 编译左
+    let nolv = complie_vul(&mut temp, &condition.lexpr);
+    // 编译右
+    let norv = complie_vul(&mut temp, &condition.rexpr);
+    let op = Op::from(condition.op.clone());
+    let ano_op = Op::from(condition.op.clone());
+    match super::abi::Condition::try_from(op) {
+        Ok(condition) => {
+            return LogicCode::Jump(0, condition, nolv, norv);
+        }
+        Err(_) => {
+            let new_id = alloc_new_id();
+            temp.push(LogicCode::Op(ano_op, new_id.clone(), nolv, norv));
+            return LogicCode::Jump(0, super::abi::Condition::NotEq, new_id, empty_vul());
         }
     }
-    unsafe {
-        PC += local_codes.len();
-    }
-    local_codes
 }
+
+// 链接部分,应当由complier集成
+// 链接 局部跳转转化为全局跳转
+//
+// 作废

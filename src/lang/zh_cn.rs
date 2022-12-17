@@ -35,8 +35,8 @@ pub fn get_buildin_meg(meg: &Meg) -> String {
             "{}\n{}\n{}\n{}\n{}",
             "mll\t-f <输入文件>\t传入输出文件的路径",
             "\t-o <输出文件>\t传入输出文件的位置,默认为./output.mdtc",
-            "\t-d\t展示DEBUG信息(观感极差)",
-            "mll\t-v\t获取版本信息",
+            "\t-d 展示DEBUG信息(观感极差)",
+            "mll\t-v 获取版本信息",
             "\t-h\t获取帮助"
         ),
         Meg::Version => format!(
