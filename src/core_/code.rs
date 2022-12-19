@@ -28,10 +28,10 @@ impl Set {
 }
 
 pub struct CtrlIf {
-    condition: Condition,
-    if_statement: Vec<T>,
-    elifs: Vec<(Condition, Vec<T>)>,
-    else_statement: Vec<T>,
+    pub condition: Condition,
+    pub if_statement: Vec<T>,
+    pub elifs: Vec<(Condition, Vec<T>)>,
+    pub else_statement: Vec<T>,
 }
 impl Debug for CtrlIf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

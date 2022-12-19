@@ -1,4 +1,8 @@
-use crate::error::CTErr;
+/*
+对PC的计量只能由高级可编译类型进行
+避免重复计量PC导致错误
+*/
+use crate::{error::CTErr, DEBUG};
 
 use super::{abi::*, code::*};
 static mut OP_ID: usize = 0;
@@ -32,10 +36,115 @@ elif 条件   -> 同上
 如果if/elif/else的总数>1,那除了最后一块都有
 jump always 最后块后一行
 
+方案1
+set con = xxx
+if con == 1 -> tag a
+jump tag b
+tag a: BODY
+tag b: AFTER
+
++else:
+
+set con = xxx
+if con == 1 -> tag a
+jump tag b0
+tag a: BODY
+jump tag z
+tag b0: (if) con2 == 1 ->tag b
+jump tag b1
+...
+tag z: AFTER
+
+方案2
+set con == xxx
+if con != 1 ->tag b
+BODY
+tag b: AFTER
+
++else
+
+set con == xxx
+if con != 1 ->tag b
+BODY
+jump tag z
+tag b: (if) con2 != 1->tag c
+BODY
+jump tag z
+...
+tag z: AFTER
+
+方案混合
+
+TODO
+
 */
 impl Complite for CtrlIf {
     fn compliet(&self) -> Codes {
-        todo!()
+        if DEBUG {
+            println!("TODO: core_::complier: CtrlIf编译优化 目前均用方案1");
+            println!("TODO: core_::complier: CtrlIf编译优化 方案混合");
+        }
+        // 方案1
+        let mut index_of_jump_to_next: Vec<usize> = Vec::new();
+        let mut index_of_jump_to_end: Vec<usize> = Vec::new();
+        let mut temp = Codes::new();
+        let mut complier_one = |condition: &super::code::Condition,
+                                statements: &Vec<Box<dyn Complite>>,
+                                hava_next: bool| {
+            unsafe {
+                let old_temp_len = temp.len();
+                // set con == ... && jump ...
+                complier_condition(&mut temp, condition);
+                // jump always ...
+                if hava_next {
+                    temp.push(LogicCode::Jump(
+                        0,
+                        super::abi::Condition::Always,
+                        i_vul("114514"),
+                        i_vul("191810"),
+                    ));
+                }
+                // PC+=2/3
+                PC += temp.len() - old_temp_len;
+                // 重定向跳转位
+                temp[PC - (1 + if hava_next { 1 } else { 0 })].change_jump_target(PC);
+                // 放入重定向位
+                if hava_next {
+                    index_of_jump_to_next.push(PC - 1);
+                }
+                // 编译子语句
+                for sta in statements {
+                    temp.append(&mut sta.compliet());
+                }
+                if hava_next {
+                    index_of_jump_to_end.push(PC);
+                    temp.push(LogicCode::Jump(
+                        0,
+                        super::abi::Condition::Always,
+                        i_vul("114514"),
+                        i_vul("191810"),
+                    ));
+                    PC += 1;
+                }
+            }
+        };
+        // 主体
+        complier_one(&self.condition, &self.if_statement, false);
+        for cs in &self.elifs {
+            complier_one(&cs.0, &cs.1, false)
+        }
+        if self.else_statement.len() != 0 {
+            complier_one(
+                &super::code::Condition::new(
+                    Expr::Data(vec![' ']),
+                    vec![' '],
+                    Expr::Data(vec![' ']),
+                ),
+                &self.else_statement,
+                true,
+            )
+        }
+        return temp;
     }
 }
 /*
@@ -347,7 +456,7 @@ fn empty_vul() -> Vec<char> {
 fn i_vul(vul: &str) -> Vec<char> {
     vul.chars().collect()
 }
-fn get_condition(mut temp: &mut Codes, condition: &super::code::Condition) -> LogicCode {
+fn complier_condition(mut temp: &mut Codes, condition: &super::code::Condition) {
     // 编译左
     let nolv = complie_vul(&mut temp, &condition.lexpr);
     // 编译右
@@ -355,13 +464,16 @@ fn get_condition(mut temp: &mut Codes, condition: &super::code::Condition) -> Lo
     let op = Op::from(condition.op.clone());
     let ano_op = Op::from(condition.op.clone());
     match super::abi::Condition::try_from(op) {
-        Ok(condition) => {
-            return LogicCode::Jump(0, condition, nolv, norv);
-        }
+        Ok(condition) => temp.push(LogicCode::Jump(0, condition, nolv, norv)),
         Err(_) => {
             let new_id = alloc_new_id();
             temp.push(LogicCode::Op(ano_op, new_id.clone(), nolv, norv));
-            return LogicCode::Jump(0, super::abi::Condition::NotEq, new_id, empty_vul());
+            temp.push(LogicCode::Jump(
+                0,
+                super::abi::Condition::NotEq,
+                new_id,
+                empty_vul(),
+            ))
         }
     }
 }
