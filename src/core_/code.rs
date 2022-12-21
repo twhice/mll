@@ -4,12 +4,12 @@ type T = Box<dyn Complite>;
 
 use super::{complier::Complite, Token};
 pub struct Set {
-    Sets: Vec<(Vec<char>, Expr)>,
+    sets: Vec<(Vec<char>, Expr)>,
 }
 impl Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut ret = String::from("{");
-        for set in &self.Sets {
+        for set in &self.sets {
             let mut name = String::new();
             for c in &set.0 {
                 name += String::from(*c).as_str();
@@ -22,8 +22,8 @@ impl Debug for Set {
 }
 
 impl Set {
-    pub fn new(Sets: Vec<(Vec<char>, Expr)>) -> Self {
-        Self { Sets }
+    pub fn new(sets: Vec<(Vec<char>, Expr)>) -> Self {
+        Self { sets: sets }
     }
 }
 
@@ -98,8 +98,8 @@ impl CtrlWhile {
 
 #[derive(Debug)]
 pub struct CtrlSwitch {
-    condition: Expr,
-    cases: Vec<Vec<T>>,
+    pub condition: Expr,
+    pub cases: Vec<Vec<T>>,
 }
 
 impl CtrlSwitch {
@@ -121,7 +121,6 @@ impl CtrlReturn {
 #[derive(Clone)]
 pub enum Expr {
     Eoe(Box<Expr>, Box<Expr>, Box<Expr>),
-    Eo(Box<Expr>, Vec<char>),
     Oe(Box<Expr>, Box<Expr>),
     Data(Vec<char>),
     Op(Vec<char>),
@@ -154,7 +153,6 @@ impl Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Eoe(arg0, arg1, arg2) => write!(f, "({:?}{:?}{:?})", arg0, arg1, arg2),
-            Self::Eo(arg0, arg1) => write!(f, "({:?}{:?})", arg0, arg1),
             Self::Oe(arg0, arg1) => write!(f, "({:?}{:?})", arg0, arg1),
             Self::Data(arg0) => {
                 let mut lvts = String::new();
