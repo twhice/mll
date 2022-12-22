@@ -4,7 +4,7 @@ type T = Box<dyn Complite>;
 
 use super::{complier::Complite, Token};
 pub struct Set {
-    sets: Vec<(Vec<char>, Expr)>,
+    pub sets: Vec<(Vec<char>, Expr)>,
 }
 impl Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -23,7 +23,7 @@ impl Debug for Set {
 
 impl Set {
     pub fn new(sets: Vec<(Vec<char>, Expr)>) -> Self {
-        Self { sets: sets }
+        Self { sets }
     }
 }
 

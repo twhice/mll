@@ -68,6 +68,9 @@ pub fn cte_solve(err: &CTErr) {
             println!("暂不支持递归,不可在函数中定义函数!");
             exit(1);
         }
+        CTErr::UnDefVul(na) => {
+            println!("警告: 未定义的值{}", vec_to_str(na))
+        }
     }
 }
 pub fn vec_to_str(vec: &Vec<char>) -> String {

@@ -2,10 +2,14 @@
 对PC的计量只能由高级可编译类型进行
 避免重复计量PC导致错误
 */
-use super::{abi::*, code::*};
+use super::abi::Condition;
+use super::code::Condition as CExpr;
+use super::{
+    abi::{LogicCode, Op},
+    code::{CtrlDef, CtrlIf, CtrlReturn, CtrlSwitch, CtrlWhile, Expr, Set},
+};
 use crate::lang::vec_to_str;
 use crate::{error::CTErr, DEBUG};
-
 pub trait Complite
 where
     Self: Debug,
@@ -44,8 +48,24 @@ impl Func {
     }
 }
 
+// 定义的函数/值
 static mut DEFED_FNS: Vec<Func> = Vec::new();
 static mut DEFED_VUL: Vec<Name> = Vec::new();
+
+// 查询值是否已经定义
+fn lookup_vul(name: &Vec<char>) -> bool {
+    unsafe {
+        for defed in &DEFED_VUL {
+            if *defed == *name {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+// 别名系统 别名 实际名
+static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
 
 impl Complite for CtrlDef {
     fn compliet(&self) -> Codes {
@@ -67,14 +87,44 @@ impl Complite for CtrlSwitch {
         todo!()
     }
 }
+/*
+a>反条件>b
+...
+>a
+b>
+*/
 impl Complite for CtrlWhile {
     fn compliet(&self) -> Codes {
-        todo!()
+        let mut codes = Codes::new();
+        // 判断语句的位置
+        let taga = codes.link_cdtn(&self.condition);
+        // 编译循环体部分
+        codes.link_cmus(&self.statements);
+        codes.push(jump_always());
+        // 避免冲突,获取长
+        let codes_len = codes.len();
+        // 最后一条语句指向判断语句
+        codes[codes_len - 1].reset_target(taga);
+        // 判断语句指空
+        codes[taga].reset_target(codes_len);
+        return codes;
     }
 }
 impl Complite for Set {
     fn compliet(&self) -> Codes {
-        todo!()
+        let mut codes = Codes::new();
+        // 遍历set组合
+        for set in &self.sets {
+            // 求值
+            let set_vul = codes.link_expr(&set.1);
+            // 赋值
+            codes.push(LogicCode::Set(set.0.clone(), set_vul));
+            // 注册状态
+            if !lookup_vul(&set.0) {
+                unsafe { DEFED_VUL.push(set.0.clone()) }
+            }
+        }
+        return codes;
     }
 }
 // 内建宏      函数名 参数长 实现
@@ -88,6 +138,9 @@ const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 1] = [(
         codes
     }),
 )];
+
+// 原版常量
+// const MDT_CONSTS : [&str;2]=["@counter","links"]
 impl Complite for Expr {
     fn compliet(&self) -> Codes {
         match self {
@@ -114,7 +167,30 @@ impl Complite for Expr {
                 ));
                 codes
             }
-            Expr::Data(_) => todo!(),
+            Expr::Data(vul) => {
+                // 数字开头 @或者_开头直接跳
+                let currten = vul[0];
+                if currten.is_ascii_digit() || currten == '@' || currten == '_' {
+                    return vec![LogicCode::Set(alloc_name(), vul.clone())];
+                }
+
+                unsafe {
+                    // 查看名称是否为别名
+                    for shard in &SHARD_VUL {
+                        if *vul == shard.0 {
+                            return vec![LogicCode::Set(alloc_name(), shard.1.clone())];
+                        }
+                    }
+
+                    // 查看值是否已经定义
+                    // 未定义的给予提醒
+                    if !lookup_vul(vul) {
+                        CTErr::UnDefVul(vul.clone()).solve();
+                    }
+
+                    return vec![LogicCode::Set(alloc_name(), vul.clone())];
+                }
+            }
             Expr::Op(_) => todo!(),
             Expr::CallFn(fn_name, args) => {
                 // 闭包函数简化代码
@@ -125,45 +201,49 @@ impl Complite for Expr {
                 };
 
                 let mut codes = Codes::new();
-                let mut located_fn = false;
 
                 // 在内建宏函数中查询是否为已有函数
                 for r#macro in &MACROS {
                     if match_fn(&r#macro.0.chars().collect(), r#macro.1) {
                         codes.link(&mut r#macro.2(args));
-                        located_fn = true;
-                        break;
+                        return codes;
                     }
                 }
 
-                // 在注册函数中查询是否为已有函数
-                if !located_fn {
-                    unsafe {
-                        for func in &DEFED_FNS {
-                            if match_fn(&func.fn_name, func.args_num) {
-                                // 传参
-                                for arg_id in 0..args.len() {
-                                    // 链接参数
-                                    let arg_vul = codes.link_expr(&args[arg_id]);
-                                    // 传参语句
-                                    codes.push(LogicCode::Set(
-                                        format!("mll_ct_call_{}_{}", vec_to_str(&fn_name), arg_id)
-                                            .chars()
-                                            .collect(),
-                                        arg_vul,
-                                    ));
-                                }
-                                located_fn = true;
-                                break;
+                unsafe {
+                    // 在注册函数中查询是否为已有函数
+                    for func in &DEFED_FNS {
+                        if match_fn(&func.fn_name, func.args_num) {
+                            // 传参
+                            for arg_id in 0..args.len() {
+                                // 链接参数
+                                let arg_vul = codes.link_expr(&args[arg_id]);
+                                // 传参语句
+                                codes.push(LogicCode::Set(
+                                    format!("mll_ct_call_{}_{}", vec_to_str(&fn_name), arg_id)
+                                        .chars()
+                                        .collect(),
+                                    arg_vul,
+                                ));
                             }
+
+                            // 如果有必要, 收取返回值
+                            if func.have_ret {
+                                codes.push(LogicCode::Set(
+                                    alloc_name(),
+                                    format!("mll_const_fnret_{}", vec_to_str(&fn_name))
+                                        .chars()
+                                        .collect(),
+                                ))
+                            }
+
+                            return codes;
                         }
                     }
                 }
 
                 // 仍未定位到函数 :报错
-                if !located_fn {
-                    CTErr::UnknowFn(fn_name.clone()).solve();
-                }
+                CTErr::UnknowFn(fn_name.clone()).solve();
                 todo!()
             }
         }
@@ -172,6 +252,8 @@ impl Complite for Expr {
 trait Link {
     fn link(&mut self, add_codes: &mut Self);
     fn link_expr(&mut self, expr: &Expr) -> Name;
+    fn link_cdtn(&mut self, condition: &CExpr) -> usize;
+    fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complite>>);
 }
 impl Link for Codes {
     fn link(&mut self, add_codes: &mut Self) {
@@ -179,7 +261,8 @@ impl Link for Codes {
         let base_len = base_codes.len();
         for i in 0..add_codes.len() {
             if let LogicCode::Jump(..) = &add_codes[i] {
-                add_codes[i].offset_target(base_len)
+                let old_target = add_codes[i].get_target();
+                add_codes[i].reset_target(base_len + old_target)
             }
         }
         (*base_codes).append(add_codes);
@@ -198,6 +281,68 @@ impl Link for Codes {
             _ => todo!(),
         };
     }
+
+    fn link_cdtn(&mut self, condition: &CExpr) -> usize {
+        // 链接两条件
+        let le = self.link_expr(&condition.lexpr);
+        let re = self.link_expr(&condition.rexpr);
+        // 编译条件
+        let op = Op::from(condition.op.clone());
+        let cdtn = Condition::try_from(op);
+        match cdtn {
+            // 简化的符号
+            Ok(cdtn) => {
+                // 严格相等的情况
+                if let Condition::Seq = cdtn {
+                    // 退化为eq
+                    let new_name = alloc_name();
+                    self.push(LogicCode::Op(Op::StrictEqual, new_name.clone(), le, re));
+                    self.push(LogicCode::Jump(
+                        0,
+                        Condition::Eq,
+                        new_name,
+                        create_data("0"),
+                    ));
+                    // 返回位置
+                    return self.len() - 1;
+                }
+
+                // 默认情况
+                // 条件取反
+                let cdtn = match cdtn {
+                    Condition::Eq => Condition::NotEq,
+                    Condition::NotEq => Condition::Eq,
+                    Condition::Greater => Condition::NotGreater,
+                    Condition::NotGreater => Condition::Greater,
+                    Condition::Less => Condition::NotLess,
+                    Condition::NotLess => Condition::Less,
+                    Condition::Always => Condition::Always,
+                    _ => todo!(),
+                };
+                self.push(LogicCode::Jump(0, cdtn, le, re));
+                return self.len() - 1;
+            }
+            Err(_) => {
+                // 计算结果再取反
+                let new_name = alloc_name();
+                self.push(LogicCode::Op(op, new_name.clone(), le, re));
+                self.push(LogicCode::Jump(
+                    0,
+                    Condition::Eq,
+                    new_name,
+                    create_data("0"),
+                ));
+                // 返回位置
+                return self.len() - 1;
+            }
+        }
+    }
+
+    fn link_cmus(&mut self, complie_units: &Vec<Box<dyn Complite>>) {
+        for complie_unit in complie_units {
+            self.link(&mut complie_unit.compliet());
+        }
+    }
 }
 static mut ALLOCED: usize = 0;
 fn alloc_name() -> Name {
@@ -209,4 +354,12 @@ fn alloc_name() -> Name {
 }
 fn create_data(name: &str) -> Name {
     name.chars().collect()
+}
+fn jump_always() -> LogicCode {
+    LogicCode::Jump(
+        0,
+        super::abi::Condition::Always,
+        create_data("114514"),
+        create_data("1919810"),
+    )
 }

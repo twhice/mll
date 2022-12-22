@@ -64,10 +64,16 @@ pub enum LogicCode {
 }
 
 impl LogicCode {
-    pub fn offset_target(&mut self, offset: usize) {
-        if let LogicCode::Jump(old_target, o, l, r) = self {
-            *self = LogicCode::Jump(*old_target + offset, *o, l.clone(), r.clone())
+    pub fn reset_target(&mut self, target: usize) {
+        if let LogicCode::Jump(_, o, l, r) = self {
+            *self = LogicCode::Jump(target, *o, l.clone(), r.clone())
         }
+    }
+    pub fn get_target(&self) -> usize {
+        if let LogicCode::Jump(target, _, _, _) = self {
+            return *target;
+        }
+        0
     }
 }
 #[derive(Clone, Copy)]
@@ -100,7 +106,7 @@ impl Debug for Condition {
         write!(f, "{}", self.to_string())
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum Op {
     Add,
     Sub,

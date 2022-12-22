@@ -59,6 +59,7 @@ pub enum CTErr {
     DefinDef(Vec<char>, Vec<char>),
     ProcessTooLong,
     CallFninDef(Vec<char>),
+    UnDefVul(Vec<char>),
 }
 impl CTErr {
     pub fn solve(&self) {
