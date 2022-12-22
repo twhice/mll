@@ -70,7 +70,7 @@ pub fn cte_solve(err: &CTErr) {
         }
     }
 }
-fn vec_to_str(vec: &Vec<char>) -> String {
+pub fn vec_to_str(vec: &Vec<char>) -> String {
     let mut ret = String::new();
     for c in vec {
         ret += c.to_string().as_str();

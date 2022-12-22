@@ -5,6 +5,7 @@ use crate::error::Err;
 use super::code::Expr;
 
 type Name = Vec<char>;
+#[derive(Clone)]
 pub enum LogicCode {
     Set(Name, Name),
     /*
@@ -61,10 +62,11 @@ pub enum LogicCode {
      */
     Op(Op, Name, Name, Name),
 }
+
 impl LogicCode {
-    pub fn change_jump_target(&mut self, new_target: usize) {
-        if let LogicCode::Jump(_, o, l, r) = self {
-            *self = LogicCode::Jump(new_target, *o, l.clone(), r.clone())
+    pub fn offset_target(&mut self, offset: usize) {
+        if let LogicCode::Jump(old_target, o, l, r) = self {
+            *self = LogicCode::Jump(*old_target + offset, *o, l.clone(), r.clone())
         }
     }
 }
@@ -98,6 +100,7 @@ impl Debug for Condition {
         write!(f, "{}", self.to_string())
     }
 }
+#[derive(Clone)]
 pub enum Op {
     Add,
     Sub,
@@ -145,45 +148,45 @@ impl Display for Op {
             f,
             "{}",
             match self {
-                Add => "add",
-                Sub => "sub",
-                Mul => "mul",
-                Div => "div",
-                Idiv => "idiv",
-                Mod => "mod",
-                Pow => "pow",
-                Equal => "equal",
-                NotEqual => "notEqual",
-                Land => "land",
-                LessThan => "lessThan",
-                LessThanEq => "lessThanEq",
-                GreaterThan => "greaterThan",
-                GreaterThanEq => "greaterThanEq",
-                StrictEqual => "strictEqual",
-                Shl => "shl",
-                Shr => "shr",
-                Or => "or",
-                And => "and",
-                Xor => "xor",
-                Not => "not",
-                Max => "max",
-                Min => "min",
-                Angle => "angle",
-                Len => "len",
-                Noise => "noise",
-                Abs => "abs",
-                Log => "log",
-                Log10 => "log10",
-                Floor => "floor",
-                Ceil => "ceil",
-                Sqrt => "sqrt",
-                Rand => "rand",
-                Sin => "sin",
-                Cos => "cos",
-                Tan => "tan",
-                Asin => "asin",
-                Acos => "acos",
-                Atan => "atan",
+                Op::Add => "add",
+                Op::Sub => "sub",
+                Op::Mul => "mul",
+                Op::Div => "div",
+                Op::Idiv => "idiv",
+                Op::Mod => "mod",
+                Op::Pow => "pow",
+                Op::Equal => "equal",
+                Op::NotEqual => "notEqual",
+                Op::Land => "land",
+                Op::LessThan => "lessThan",
+                Op::LessThanEq => "lessThanEq",
+                Op::GreaterThan => "greaterThan",
+                Op::GreaterThanEq => "greaterThanEq",
+                Op::StrictEqual => "strictEqual",
+                Op::Shl => "shl",
+                Op::Shr => "shr",
+                Op::Or => "or",
+                Op::And => "and",
+                Op::Xor => "xor",
+                Op::Not => "not",
+                Op::Max => "max",
+                Op::Min => "min",
+                Op::Angle => "angle",
+                Op::Len => "len",
+                Op::Noise => "noise",
+                Op::Abs => "abs",
+                Op::Log => "log",
+                Op::Log10 => "log10",
+                Op::Floor => "floor",
+                Op::Ceil => "ceil",
+                Op::Sqrt => "sqrt",
+                Op::Rand => "rand",
+                Op::Sin => "sin",
+                Op::Cos => "cos",
+                Op::Tan => "tan",
+                Op::Asin => "asin",
+                Op::Acos => "acos",
+                Op::Atan => "atan",
             }
         )
     }
@@ -260,13 +263,11 @@ impl From<Vec<char>> for Op {
         };
     }
 }
-impl TryFrom<Expr> for Op {
-    type Error = Err;
-
-    fn try_from(value: Expr) -> Result<Self, Self::Error> {
+impl From<&Expr> for Op {
+    fn from(value: &Expr) -> Self {
         match value {
-            Expr::Op(vec) => Ok(vec.into()),
-            _ => Err(Err::None),
+            Expr::Op(vec) => Self::from(vec.clone()),
+            _ => todo!(),
         }
     }
 }

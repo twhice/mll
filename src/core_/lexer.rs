@@ -40,7 +40,7 @@ pub fn lexer(src: &str, base_pos: &mut Pos) -> Result<Vec<Token>, ErrMeg> {
             break;
         }
         // Name
-        else if currten.is_alphabetic() || currten == '_' {
+        else if currten.is_alphabetic() || currten == '_' || currten == '@' {
             ret.push(collect_by_rule(
                 currten,
                 TokenType::Name,

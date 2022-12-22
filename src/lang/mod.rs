@@ -2,7 +2,7 @@ use crate::error::{CTErr, Err};
 use crate::io::Meg;
 mod en_us;
 mod zh_cn;
-
+pub use zh_cn::vec_to_str;
 pub enum Language {
     Chinese,
     English,
