@@ -14,6 +14,8 @@ pub use lexer::lexer;
 pub use parser::parser;
 
 use crate::error::ErrMeg;
+
+use self::complier::{jump_always, Link};
 #[derive(Clone)]
 pub struct Pos {
     filename: String,
@@ -99,7 +101,8 @@ impl PartialEq<Pos> for Pos {
     }
 }
 
-pub fn run(src: String, filename: &str, debug_meg: bool) -> Result<(), ErrMeg> {
+pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
+    let debug_meg = unsafe { super::DEBUG };
     let mut tokens = Vec::new();
     let mut base_pos = Pos {
         filename: filename.to_owned(),
@@ -135,5 +138,37 @@ pub fn run(src: String, filename: &str, debug_meg: bool) -> Result<(), ErrMeg> {
     if debug_meg {
         println!("ComUnits: {:?}", com_units);
     }
-    Ok(())
+
+    // 编译链接
+    let mut codes = Vec::new();
+    let mut remove_indexs: Vec<bool> = Vec::new();
+    codes.push(jump_always());
+
+    // 先定义所有函数
+    for i in 0..com_units.len() {
+        if com_units[i].is_def() {
+            codes.link(&mut com_units[i].compliet());
+            remove_indexs.push(false);
+            continue;
+        }
+        remove_indexs.push(true)
+    }
+    let codes_len = codes.len();
+    codes[0].reset_target(codes_len);
+    for i in 0..com_units.len() {
+        if remove_indexs[i] {
+            codes.link(&mut com_units[i].compliet());
+        }
+    }
+
+    let mut mdt_codes: Vec<String> = Vec::new();
+    for code in codes {
+        mdt_codes.push(code.to_string());
+    }
+
+    if mdt_codes.len() > 999 {
+        crate::error::CTErr::ProcessTooLong.solve()
+    }
+
+    Ok(mdt_codes)
 }

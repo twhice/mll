@@ -21,7 +21,7 @@ impl Argument {
         }
     }
 }
-pub const DEBUG: bool = false;
+pub static mut DEBUG: bool = false;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
 
@@ -62,7 +62,7 @@ pub fn old_err_test() {
     let fake_err = error::ErrMeg::new(pos, error::Err::UnknowKeyword);
     println!("{}", fake_err)
 }
-pub use core_::run;
+pub use core_::complie;
 pub use io::build_args;
 pub use io::Meg;
 pub use lang::get_buildin_meg;

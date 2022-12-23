@@ -292,7 +292,7 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                 TokenType::Symbol => {
                     if token.match_text("!") || token.match_text("-") {
                         tokens.remove(0);
-                        ret.push(token)
+                        ret.push(token);
                     } else if token.match_text("(") {
                         tokens.remove(0);
                         ret.append(&mut tokens_get_expr(tokens)?);
@@ -316,6 +316,28 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                         tokens.remove(0);
                         ret.push(token);
                         expect_vul = true
+                    } else if token.match_text("(") {
+                        // 此分支为函数调用
+                        ret.push(tokens[0].clone());
+                        tokens.remove(0);
+                        ret.append(&mut tokens_get_expr(tokens)?);
+                        while tokens_match_bool(tokens, ",") {
+                            ret.push(tokens[0].clone());
+                            tokens.remove(0);
+                            ret.append(&mut tokens_get_expr(tokens)?);
+                        }
+                        if !tokens_match_bool(tokens, ")") {
+                            return Err(ErrMeg::new(
+                                if tokens.len() == 0 {
+                                    Pos::new()
+                                } else {
+                                    tokens[0].pos.clone()
+                                },
+                                Err::NotVul,
+                            ));
+                        }
+                        ret.push(tokens[0].clone());
+                        tokens.remove(0);
                     } else {
                         break;
                     }

@@ -5,6 +5,7 @@
 内部变量:
 mll_ctcf_<FN_NAME>_<INDEX>  函数传参
 mll_rtfr_<FN_NAME>          函数返回
+mll_rtsc_<FN_NAME>          执行函数前保存位置
 mll_rtsw                    switch跳转
 */
 use super::abi::Condition;
@@ -13,15 +14,15 @@ use super::{
     abi::{LogicCode, Op},
     code::{CtrlDef, CtrlIf, CtrlReturn, CtrlSwitch, CtrlWhile, Expr, Set},
 };
+use crate::error::CTErr;
 use crate::lang::vec_to_str;
-use crate::{error::CTErr, DEBUG};
 pub trait Complite
 where
     Self: Debug,
 {
     fn compliet(&self) -> Codes;
     // 我是傻逼
-    fn is_ctrl_return(&self) -> bool {
+    fn is_def(&self) -> bool {
         false
     }
 }
@@ -36,27 +37,30 @@ use std::fmt::Debug;
 type Codes = Vec<LogicCode>;
 type Name = Vec<char>;
 
+#[derive(Debug, Clone)]
 struct Func {
     pub fn_name: Name,
     pub args_num: usize,
-    pub have_ret: bool,
     pub call_self: bool,
+    pub address: usize,
 }
 impl Func {
     pub fn new(fn_name: &Name) -> Self {
         Self {
             fn_name: fn_name.clone(),
             args_num: 0,
-            have_ret: false,
             call_self: false,
+            address: 0,
         }
     }
 }
-
+// 现存语句数 1是因为恒定有一条跳过所有函数定义的语句
+static mut CODES_LEN: usize = 1;
 // 定义的函数/值
 static mut DEFED_FNS: Vec<Func> = Vec::new();
 static mut DEFED_VUL: Vec<Name> = Vec::new();
-
+// 正在定义的函数
+static mut DEFING_FN: Option<Func> = None;
 // 查询值是否已经定义
 fn lookup_vul(name: &Vec<char>) -> bool {
     unsafe {
@@ -74,12 +78,89 @@ static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
 
 impl Complite for CtrlDef {
     fn compliet(&self) -> Codes {
-        todo!()
+        // 避免SHARD覆盖,不允许函数中定义函数
+        unsafe {
+            if let Some(defing_fn) = &DEFING_FN {
+                CTErr::DefinDef(defing_fn.fn_name.clone(), self.fn_name.clone()).solve()
+            }
+        }
+
+        // 注册函数
+        let mut this = Func::new(&self.fn_name);
+        this.args_num = self.args.len();
+        this.call_self = false;
+        this.address = unsafe { CODES_LEN };
+        unsafe {
+            DEFED_FNS.push(this.clone());
+            DEFING_FN = Some(this);
+        }
+
+        // 设置映射
+        for arg_id in 0..self.args.len() {
+            let arg = &self.args[arg_id];
+            unsafe {
+                SHARD_VUL.push((
+                    arg.clone(),
+                    format!("mll_ctcf_{}_{}", vec_to_str(&self.fn_name), arg_id)
+                        .chars()
+                        .collect(),
+                ))
+            }
+        }
+
+        // 编译本体
+        let mut codes = Codes::new();
+        codes.link_cmus(&self.statement);
+
+        // 刷新CODES_LEN和DEFING_FN
+        unsafe {
+            CODES_LEN += codes.len();
+            DEFING_FN = None;
+        }
+        return codes;
+    }
+    fn is_def(&self) -> bool {
+        true
     }
 }
 impl Complite for CtrlReturn {
     fn compliet(&self) -> Codes {
-        todo!()
+        // 获取函数名,过滤意义不明的return
+        let fn_name = vec_to_str(unsafe {
+            match &DEFING_FN {
+                Some(defing_fn) => &defing_fn.fn_name,
+                None => {
+                    CTErr::UnknowReturn.solve();
+                    return Codes::new();
+                }
+            }
+        });
+
+        let fn_ret_name = format!("mll_rtfr_{}", fn_name)
+            .chars()
+            .collect::<Vec<char>>();
+
+        // 编译表达式
+        let mut codes = Codes::new();
+        let possiable_vul = codes.link_expr(&self.return_vul);
+
+        // 在表达式编译产物被全部优化时,取possiable_vul
+        if codes.len() == 0 {
+            codes.push(LogicCode::Set(fn_ret_name, possiable_vul))
+        } else {
+            let codes_len = codes.len();
+            codes[codes_len - 1] = match codes[codes_len - 1].clone() {
+                LogicCode::Op(op, _, lv, rv) => LogicCode::Op(op, fn_ret_name, lv, rv),
+                _ => todo!("你发现了一个Bug,速速反馈!"),
+            };
+        }
+
+        // 跳转回去
+        codes.push(LogicCode::Set(
+            create_data("@counter"),
+            format!("mll_rtsc_{}", fn_name).chars().collect(),
+        ));
+        return codes;
     }
 }
 impl Complite for CtrlIf {
@@ -100,9 +181,9 @@ impl Complite for CtrlIf {
         };
 
         // 载入跳转行
-        jump_tags.push(codes.link_cdtn(&self.if_condition));
+        jump_tags.push(codes.link_cond(&self.if_condition));
         for elif in &self.elifs {
-            jump_tags.push(codes.link_cdtn(&elif.0));
+            jump_tags.push(codes.link_cond(&elif.0));
         }
 
         // 如果可能,编译else
@@ -193,7 +274,7 @@ impl Complite for CtrlWhile {
     fn compliet(&self) -> Codes {
         let mut codes = Codes::new();
         // 判断语句的位置
-        let taga = codes.link_cdtn(&self.condition);
+        let taga = codes.link_xcon(&self.condition);
         // 编译循环体部分
         codes.link_cmus(&self.statements);
         codes.push(jump_always());
@@ -235,8 +316,6 @@ const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 1] = [(
     }),
 )];
 
-// 原版常量
-// const MDT_CONSTS : [&str;2]=["@counter","links"]
 impl Complite for Expr {
     fn compliet(&self) -> Codes {
         match self {
@@ -307,6 +386,13 @@ impl Complite for Expr {
                 }
 
                 unsafe {
+                    // 阻止递归
+                    if let Some(definf_fn) = &DEFING_FN {
+                        if match_fn(&definf_fn.fn_name, definf_fn.args_num) {
+                            CTErr::CallFninDef(definf_fn.fn_name.clone()).solve();
+                        }
+                    }
+
                     // 在注册函数中查询是否为已有函数
                     for func in &DEFED_FNS {
                         if match_fn(&func.fn_name, func.args_num) {
@@ -323,15 +409,31 @@ impl Complite for Expr {
                                 ));
                             }
 
-                            // 如果有必要, 收取返回值
-                            if func.have_ret {
-                                codes.push(LogicCode::Set(
-                                    alloc_name(),
-                                    format!("mll_rtfr_{}", vec_to_str(&fn_name))
-                                        .chars()
-                                        .collect(),
-                                ))
-                            }
+                            // 保存位置
+                            codes.push(LogicCode::Op(
+                                Op::Add,
+                                format!("mll_rtsc_{}", vec_to_str(fn_name))
+                                    .chars()
+                                    .collect(),
+                                create_data("@counter"),
+                                create_data("1"),
+                            ));
+
+                            // 跳转
+                            codes.push(LogicCode::Set(
+                                create_data("@counter"),
+                                format!("{}", func.address).chars().collect(),
+                            ));
+
+                            // 如果有必要, 收取返回值 -> 强制全体函数有返回值
+                            // if func.have_ret {
+                            codes.push(LogicCode::Set(
+                                alloc_name(),
+                                format!("mll_rtfr_{}", vec_to_str(&fn_name))
+                                    .chars()
+                                    .collect(),
+                            ));
+                            // }
 
                             return codes;
                         }
@@ -340,15 +442,16 @@ impl Complite for Expr {
 
                 // 仍未定位到函数 :报错
                 CTErr::UnknowFn(fn_name.clone()).solve();
-                todo!()
+                return codes;
             }
         }
     }
 }
-trait Link {
+pub trait Link {
     fn link(&mut self, add_codes: &mut Self);
     fn link_expr(&mut self, expr: &Expr) -> Name;
-    fn link_cdtn(&mut self, condition: &CExpr) -> usize;
+    fn link_xcon(&mut self, condition: &CExpr) -> usize;
+    fn link_cond(&mut self, condition: &CExpr) -> usize;
     fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complite>>);
 }
 impl Link for Codes {
@@ -368,9 +471,9 @@ impl Link for Codes {
         let mut codes = expr.compliet();
         self.link(&mut codes);
         let self_len = self.len();
-        return match self[self_len].clone() {
+        return match self[self_len - 1].clone() {
             LogicCode::Set(_, vul) => {
-                self.remove(self_len);
+                self.remove(self_len - 1);
                 vul.clone()
             }
             LogicCode::Op(_, vul, _, _) => vul.clone(),
@@ -378,7 +481,7 @@ impl Link for Codes {
         };
     }
 
-    fn link_cdtn(&mut self, condition: &CExpr) -> usize {
+    fn link_xcon(&mut self, condition: &CExpr) -> usize {
         // 链接两条件
         let le = self.link_expr(&condition.lexpr);
         let re = self.link_expr(&condition.rexpr);
@@ -433,7 +536,33 @@ impl Link for Codes {
             }
         }
     }
+    fn link_cond(&mut self, condition: &CExpr) -> usize {
+        // 链接两条件
+        let le = self.link_expr(&condition.lexpr);
+        let re = self.link_expr(&condition.rexpr);
+        // 编译条件
+        let op = Op::from(condition.op.clone());
+        let cdtn = Condition::try_from(op);
 
+        //  尽可能简化
+        match cdtn {
+            Ok(op) => {
+                self.push(LogicCode::Jump(0, op, le, re));
+                return self.len() - 1;
+            }
+            Err(_) => {
+                let new_name = alloc_name();
+                self.push(LogicCode::Op(op, new_name.clone(), le, re));
+                self.push(LogicCode::Jump(
+                    0,
+                    Condition::NotEq,
+                    new_name,
+                    create_data("1"),
+                ));
+            }
+        }
+        return self.len() - 1;
+    }
     fn link_cmus(&mut self, complie_units: &Vec<Box<dyn Complite>>) {
         for complie_unit in complie_units {
             self.link(&mut complie_unit.compliet());
@@ -444,17 +573,17 @@ impl Link for Codes {
 // 常用函数
 
 static mut ALLOCED: usize = 0;
-fn alloc_name() -> Name {
+pub fn alloc_name() -> Name {
     unsafe {
         let name = format!("mll_ct_expr_temp_{}", ALLOCED).chars().collect();
         ALLOCED += 1;
         return name;
     }
 }
-fn create_data(name: &str) -> Name {
+pub fn create_data(name: &str) -> Name {
     name.chars().collect()
 }
-fn jump_always() -> LogicCode {
+pub fn jump_always() -> LogicCode {
     LogicCode::Jump(
         0,
         super::abi::Condition::Always,
@@ -462,6 +591,6 @@ fn jump_always() -> LogicCode {
         create_data("1919810"),
     )
 }
-fn empty_code() -> LogicCode {
+pub fn empty_code() -> LogicCode {
     LogicCode::Set(create_data("_"), create_data("_"))
 }

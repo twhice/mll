@@ -18,67 +18,58 @@ use mindustry_logic_language::*;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    if DEBUG {
-        if false {
-            old_err_test();
-            old_lexer_test();
-            old_repl();
-            old_parser_test();
+    let argument = if true {
+        match build_args() {
+            Ok(ok) => ok,
+            Err(err) => {
+                println!("{err}");
+                return ExitCode::FAILURE;
+            }
         }
-        let src = match std::fs::read_to_string(
-            "/home/twhicer/code/mindustry-logic-language/src/io/test2.mll",
-        ) {
+    } else {
+        let mut fake_argument = Argument::new();
+        fake_argument.show_debug_meg = true;
+        fake_argument.input_file_path =
+            "/home/twhicer/code/mindustry-logic-language/src/io/test3.mll".to_owned();
+        fake_argument
+    };
+    if argument.get_help {
+        println!("{}", get_buildin_meg(&Meg::Help))
+    } else if argument.get_version {
+        println!("{}", get_buildin_meg(&Meg::Version))
+    } else {
+        let inf = argument.input_file_path.clone();
+        // let outf = argument.output_file_path.clone();
+        unsafe {
+            DEBUG = argument.show_debug_meg;
+        }
+        let src = match std::fs::read_to_string(argument.input_file_path.clone()) {
             Ok(src) => src,
             Err(err) => {
                 println!("{}", err);
                 return ExitCode::FAILURE;
             }
         };
-
-        match run(src, "test2.mll", DEBUG) {
-            Ok(_) => {}
+        // let mut sentens: Vec<Vec<String>> = Vec::new();
+        match complie(src, &inf) {
+            Ok(result) => {
+                println!("编译结束!结果如下");
+                println!("====================");
+                for mdt_code in result {
+                    println!("{}", mdt_code)
+                }
+                println!("====================");
+            }
             Err(err) => {
                 println!("{}", err);
                 return ExitCode::FAILURE;
             }
         };
-    } else {
-        let argument = match build_args() {
-            Ok(ok) => ok,
-            Err(err) => {
-                println!("{err}");
-                return ExitCode::FAILURE;
-            }
-        };
-        if argument.get_help {
-            println!("{}", get_buildin_meg(&Meg::Help))
-        } else if argument.get_version {
-            println!("{}", get_buildin_meg(&Meg::Version))
-        } else {
-            let inf = argument.input_file_path.clone();
-            // let outf = argument.output_file_path.clone();
-            let debug_meg = argument.show_debug_meg;
-            let src = match std::fs::read_to_string(argument.input_file_path.clone()) {
-                Ok(src) => src,
-                Err(err) => {
-                    println!("{}", err);
-                    return ExitCode::FAILURE;
-                }
-            };
-            // let mut sentens: Vec<Vec<String>> = Vec::new();
-            match run(src, &inf, debug_meg) {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("{}", err);
-                    return ExitCode::FAILURE;
-                }
-            };
-        }
     }
     return ExitCode::SUCCESS;
-    // run对ERR::EMPTY的处理 OK
-    // expr和def对fn_args函数错误返回的处理 OK
-    // ERR::UNMATCH 的转化 OK
-    // 表达式解析Debug
-    // 代码生成
 }
+// run对ERR::EMPTY的处理 OK
+// expr和def对fn_args函数错误返回的处理 OK
+// ERR::UNMATCH 的转化 OK
+// 表达式解析Debug
+// 代码生成

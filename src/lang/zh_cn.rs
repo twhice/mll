@@ -33,30 +33,25 @@ pub fn get_buildin_meg(meg: &Meg) -> String {
     match meg {
         Meg::Help => format!(
             "{}\n{}\n{}\n{}\n{}",
-            "mll\t-f <输入文件>\t传入输出文件的路径",
-            "\t-o <输出文件>\t传入输出文件的位置,默认为./output.mdtc",
+            "mll\t-f <输入文件>\t传入输出文件的路径\t<目前不是摆设>",
+            "\t-o <输出文件>\t传入输出文件的位置,默认为./output.mdtc\t<目前是摆设>",
             "\t-d 展示DEBUG信息(观感极差)",
             "mll\t-v 获取版本信息",
             "\t-h\t获取帮助"
         ),
         Meg::Version => format!(
             "{}\n{}\n{}",
-            "Mindustry-logic-language V0.0.0", "By 异月(twhice)", "LICENSE: GPLv3"
+            "Mindustry-logic-language V0.0.1最终测试版", "By 异月(twhice)", "LICENSE: GPLv3"
         ),
     }
 }
 pub fn cte_solve(err: &CTErr) {
     match err {
         CTErr::UnknowFn(fn_name) => {
-            println!(
-                "无法查询函数 \"{}\"的定义,忽略返回值为0",
-                vec_to_str(fn_name)
-            );
-            exit(1)
+            println!("警告: 无法查询函数 \"{}\"的定义", vec_to_str(fn_name));
         }
         CTErr::ProcessTooLong => {
-            println!("编译后的代码行数大于999,将无法执行!请重构代码");
-            exit(1)
+            println!("警告: 编译后的代码行数大于999,将无法执行!请重构代码");
         }
         CTErr::DefinDef(fnn1, fnn2) => {
             println!("在函数{}中定义了函数{}", vec_to_str(fnn1), vec_to_str(fnn2));
@@ -70,6 +65,9 @@ pub fn cte_solve(err: &CTErr) {
         }
         CTErr::UnDefVul(na) => {
             println!("警告: 未定义的值{}", vec_to_str(na))
+        }
+        CTErr::UnknowReturn => {
+            println!("警告: 代码某处出现了意义不明的return,已经忽略")
         }
     }
 }

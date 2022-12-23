@@ -57,6 +57,7 @@ impl Display for Err {
 pub enum CTErr {
     UnknowFn(Vec<char>),
     DefinDef(Vec<char>, Vec<char>),
+    UnknowReturn,
     ProcessTooLong,
     CallFninDef(Vec<char>),
     UnDefVul(Vec<char>),

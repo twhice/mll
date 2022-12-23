@@ -1,8 +1,7 @@
-use std::fmt::{Debug, Display};
-
-use crate::error::Err;
-
+use super::super::lang::vec_to_str;
 use super::code::Expr;
+use crate::error::Err;
+use std::fmt::{Debug, Display};
 
 type Name = Vec<char>;
 #[derive(Clone)]
@@ -62,7 +61,28 @@ pub enum LogicCode {
      */
     Op(Op, Name, Name, Name),
 }
-
+impl Display for LogicCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogicCode::Set(l, r) => write!(f, "set {} {}", vec_to_str(l), vec_to_str(r)),
+            LogicCode::Jump(t, c, l, r) => write!(
+                f,
+                "jump {t} {} {} {}",
+                c.to_string(),
+                vec_to_str(l),
+                vec_to_str(r)
+            ),
+            LogicCode::Op(o, t, l, r) => write!(
+                f,
+                "op {} {} {} {}",
+                o.to_string(),
+                vec_to_str(t),
+                vec_to_str(l),
+                vec_to_str(r)
+            ),
+        }
+    }
+}
 impl LogicCode {
     pub fn reset_target(&mut self, target: usize) {
         if let LogicCode::Jump(_, o, l, r) = self {
@@ -94,7 +114,7 @@ impl Display for Condition {
             Self::Seq => write!(f, "strictEqual"),
             Self::Greater => write!(f, "greaterThan"),
             Self::Less => write!(f, "lessThan"),
-            Self::NotEq => write!(f, "notEquale"),
+            Self::NotEq => write!(f, "notEqual"),
             Self::NotGreater => write!(f, "lessThanEq"),
             Self::NotLess => write!(f, "greaterThanEq"),
             Self::Always => write!(f, "always"),
@@ -264,6 +284,8 @@ impl From<Vec<char>> for Op {
             Self::StrictEqual
         } else if match_text("==") {
             Self::Equal
+        } else if match_text("!=") {
+            Self::NotEqual
         } else {
             todo!()
         };
