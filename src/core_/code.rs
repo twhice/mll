@@ -28,7 +28,7 @@ impl Set {
 }
 
 pub struct CtrlIf {
-    pub condition: Condition,
+    pub if_condition: Condition,
     pub if_statement: Vec<T>,
     pub elifs: Vec<(Condition, Vec<T>)>,
     pub else_statement: Vec<T>,
@@ -36,7 +36,7 @@ pub struct CtrlIf {
 impl Debug for CtrlIf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut all = String::new();
-        all += &format!("{:?}", self.condition);
+        all += &format!("{:?}", self.if_condition);
         all += &cus_to_str(&self.if_statement);
 
         for elif in &self.elifs {
@@ -57,7 +57,7 @@ impl CtrlIf {
         else_statement: Vec<T>,
     ) -> Self {
         Self {
-            condition,
+            if_condition: condition,
             if_statement,
             elifs,
             else_statement,

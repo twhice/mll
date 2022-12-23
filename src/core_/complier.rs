@@ -1,6 +1,11 @@
 /*
 对PC的计量只能由高级可编译类型进行
 避免重复计量PC导致错误
+
+内部变量:
+mll_ctcf_<FN_NAME>_<INDEX>  函数传参
+mll_rtfr_<FN_NAME>          函数返回
+mll_rtsw                    switch跳转
 */
 use super::abi::Condition;
 use super::code::Condition as CExpr;
@@ -72,27 +77,118 @@ impl Complite for CtrlDef {
         todo!()
     }
 }
-impl Complite for CtrlIf {
-    fn compliet(&self) -> Codes {
-        todo!()
-    }
-}
 impl Complite for CtrlReturn {
     fn compliet(&self) -> Codes {
         todo!()
     }
 }
-impl Complite for CtrlSwitch {
+impl Complite for CtrlIf {
     fn compliet(&self) -> Codes {
-        todo!()
+        // 准备储存跳转行的一些tag,结束行的一些tag
+        let mut codes = Codes::new();
+        let mut jump_tags: Vec<usize> = Vec::new();
+        let p_jump_tags = &mut jump_tags as *mut Vec<usize>;
+        let mut finish_tags: Vec<usize> = Vec::new();
+
+        // 重复代码
+        let pop_jump_tags_first = || -> usize {
+            unsafe {
+                let tag = (*p_jump_tags)[0];
+                (*p_jump_tags).remove(0);
+                return tag;
+            }
+        };
+
+        // 载入跳转行
+        jump_tags.push(codes.link_cdtn(&self.if_condition));
+        for elif in &self.elifs {
+            jump_tags.push(codes.link_cdtn(&elif.0));
+        }
+
+        // 如果可能,编译else
+        if self.else_statement.len() != 0 {
+            codes.link_cmus(&self.else_statement);
+        }
+
+        // 跳转语句末尾的结束行
+        finish_tags.push(codes.len());
+        codes.push(jump_always());
+
+        // 编译语句
+        // 依次定向jump_tags的tag
+        let codes_len = codes.len();
+        codes[pop_jump_tags_first()].reset_target(codes_len);
+        // 编译链接跳转指向的代码本体
+        codes.link_cmus(&self.if_statement);
+        finish_tags.push(codes.len());
+        codes.push(jump_always());
+        for elif in &self.elifs {
+            let codes_len = codes.len();
+            codes[pop_jump_tags_first()].reset_target(codes_len);
+            codes.link_cmus(&elif.1);
+            finish_tags.push(codes.len());
+            codes.push(jump_always());
+        }
+
+        // 处理跳转到结束行的tag
+        let codes_len = codes.len();
+        for finish_tag in finish_tags {
+            codes[finish_tag].reset_target(codes_len);
+        }
+        return codes;
     }
 }
-/*
-a>反条件>b
-...
->a
-b>
-*/
+impl Complite for CtrlSwitch {
+    fn compliet(&self) -> Codes {
+        // 虚拟容器
+        let mut codess: Vec<Codes> = Vec::new();
+
+        // 编译同时计算出最长元素的长
+        let mut max_len: usize = 0;
+        for case in &self.cases {
+            // 编译单个
+            let mut codes = Codes::new();
+            codes.link_cmus(case);
+            if codes.len() > max_len {
+                max_len = codes.len();
+            }
+            codess.push(codes);
+        }
+
+        // 补全长度不足部分,同时链接
+        let mut cases_codes = Codes::new();
+        for codes in &mut codess {
+            for _ in 0..max_len - codes.len() {
+                codes.push(empty_code())
+            }
+            cases_codes.link(codes);
+        }
+
+        // 创建跳转表
+        let mut codes = Codes::new();
+        let cdtn_name = codes.link_expr(&self.condition);
+
+        // 跳转配置
+        codes.push(LogicCode::Op(
+            Op::Mul,
+            create_data("mll_rtsw"),
+            create_data(&format!("{}", max_len)),
+            cdtn_name,
+        ));
+
+        // 进行跳转
+        codes.push(LogicCode::Op(
+            Op::Add,
+            create_data("@counter"),
+            create_data("@counter"),
+            create_data("mll_ct_rtsw"),
+        ));
+
+        // 链接并返回
+        codes.link(&mut cases_codes);
+        return codes;
+    }
+}
 impl Complite for CtrlWhile {
     fn compliet(&self) -> Codes {
         let mut codes = Codes::new();
@@ -220,7 +316,7 @@ impl Complite for Expr {
                                 let arg_vul = codes.link_expr(&args[arg_id]);
                                 // 传参语句
                                 codes.push(LogicCode::Set(
-                                    format!("mll_ct_call_{}_{}", vec_to_str(&fn_name), arg_id)
+                                    format!("mll_ctcf_{}_{}", vec_to_str(&fn_name), arg_id)
                                         .chars()
                                         .collect(),
                                     arg_vul,
@@ -231,7 +327,7 @@ impl Complite for Expr {
                             if func.have_ret {
                                 codes.push(LogicCode::Set(
                                     alloc_name(),
-                                    format!("mll_const_fnret_{}", vec_to_str(&fn_name))
+                                    format!("mll_rtfr_{}", vec_to_str(&fn_name))
                                         .chars()
                                         .collect(),
                                 ))
@@ -344,6 +440,9 @@ impl Link for Codes {
         }
     }
 }
+
+// 常用函数
+
 static mut ALLOCED: usize = 0;
 fn alloc_name() -> Name {
     unsafe {
@@ -362,4 +461,7 @@ fn jump_always() -> LogicCode {
         create_data("114514"),
         create_data("1919810"),
     )
+}
+fn empty_code() -> LogicCode {
+    LogicCode::Set(create_data("_"), create_data("_"))
 }
