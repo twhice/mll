@@ -370,7 +370,7 @@ fn expr_priotity(expr: &Expr) -> usize {
         Expr::Op(op_text) => {
             let fuck = [
                 vec![" "],
-                // vec!["(", ""],
+                vec!["."], // 实验性功能,伪oo
                 vec!["!", "**"],
                 vec!["*", "/"],
                 vec!["+", "-"],

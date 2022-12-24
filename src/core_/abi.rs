@@ -1,6 +1,6 @@
 use super::super::lang::vec_to_str;
 use super::code::Expr;
-use crate::error::Err;
+use crate::error::{CTErr, Err};
 use std::fmt::{Debug, Display};
 
 type Name = Vec<char>;
@@ -60,6 +60,10 @@ pub enum LogicCode {
     op atan result a b
      */
     Op(Op, Name, Name, Name),
+    // getlink result 0
+    GetLink(Name, Name),
+    // sensor result block1 @copper
+    Sensor(Name, Name, Sensor),
 }
 impl Display for LogicCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -80,6 +84,14 @@ impl Display for LogicCode {
                 vec_to_str(l),
                 vec_to_str(r)
             ),
+            LogicCode::GetLink(r, i) => write!(f, "getlink {} {}", vec_to_str(r), vec_to_str(i)),
+            LogicCode::Sensor(r, n, s) => write!(
+                f,
+                "sensor {} {} {}",
+                vec_to_str(r),
+                vec_to_str(n),
+                s.to_string()
+            ),
         }
     }
 }
@@ -94,6 +106,15 @@ impl LogicCode {
             return *target;
         }
         0
+    }
+    pub fn rename_result(&mut self, new_name: Name) {
+        match self {
+            LogicCode::Set(_, v) => *self = LogicCode::Set(new_name, v.clone()),
+            LogicCode::Op(o, _, l, r) => *self = LogicCode::Op(*o, new_name, l.clone(), r.clone()),
+            LogicCode::GetLink(_, i) => *self = LogicCode::GetLink(new_name, i.clone()),
+            LogicCode::Sensor(_, n, s) => *self = LogicCode::Sensor(new_name, n.clone(), s.clone()),
+            _ => {}
+        }
     }
 }
 #[derive(Clone, Copy)]
@@ -128,6 +149,7 @@ impl Debug for Condition {
 }
 #[derive(Clone, Copy)]
 pub enum Op {
+    Sensor,
     Add,
     Sub,
     Mul,
@@ -213,6 +235,7 @@ impl Display for Op {
                 Op::Asin => "asin",
                 Op::Acos => "acos",
                 Op::Atan => "atan",
+                Op::Sensor => ".",
             }
         )
     }
@@ -286,6 +309,8 @@ impl From<Vec<char>> for Op {
             Self::Equal
         } else if match_text("!=") {
             Self::NotEqual
+        } else if match_text(".") {
+            Self::Sensor
         } else {
             todo!()
         };
@@ -296,6 +321,219 @@ impl From<&Expr> for Op {
         match value {
             Expr::Op(vec) => Self::from(vec.clone()),
             _ => todo!(),
+        }
+    }
+}
+#[derive(Clone)]
+pub enum Sensor {
+    TotalItem,
+    FirstItem,
+    TotalLiquids,
+    TotalPower,
+    ItemCapacity,
+    LiquidCapacity,
+    PowerCapacity,
+    PowerNetStored,
+    PowerNetCapacity,
+    PowerNetIn,
+    PowerNetOut,
+    Ammo,
+    AmmoCapacity,
+    Health,
+    MacHealth,
+    Heat,
+    Efficiency,
+    Prograss,
+    Timescale,
+    Rotation,
+    X,
+    Y,
+    ShootX,
+    ShootY,
+    Size,
+    Dead,
+    Range,
+    Shooting,
+    Boosting,
+    MineX,
+    MineY,
+    Mining,
+    Speed,
+    Team,
+    Typeflag,
+    Controlled,
+    Controller,
+    Name,
+    PayloadCount,
+    PayloadType,
+    Enabled,
+    Config,
+    Color,
+    Other(Name),
+}
+impl Display for Sensor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self {
+                Sensor::TotalItem => "@totalItem".to_owned(),
+                Sensor::FirstItem => "@firstItem".to_owned(),
+                Sensor::TotalLiquids => "@totalLiquids".to_owned(),
+                Sensor::TotalPower => "@totalPower".to_owned(),
+                Sensor::ItemCapacity => "@itemCapacity".to_owned(),
+                Sensor::LiquidCapacity => "@liquidCapacity".to_owned(),
+                Sensor::PowerCapacity => "@powerCapacity".to_owned(),
+                Sensor::PowerNetStored => "@powerNetStored".to_owned(),
+                Sensor::PowerNetCapacity => "@powerNetCapacity".to_owned(),
+                Sensor::PowerNetIn => "@powerNetIn".to_owned(),
+                Sensor::PowerNetOut => "@powerNetOut".to_owned(),
+                Sensor::Ammo => "@ammo".to_owned(),
+                Sensor::AmmoCapacity => "@ammoCapacity".to_owned(),
+                Sensor::Health => "@health".to_owned(),
+                Sensor::MacHealth => "@macHealth".to_owned(),
+                Sensor::Heat => "@heat".to_owned(),
+                Sensor::Efficiency => "@efficiency".to_owned(),
+                Sensor::Prograss => "@prograss".to_owned(),
+                Sensor::Timescale => "@timescale".to_owned(),
+                Sensor::Rotation => "@rotation".to_owned(),
+                Sensor::X => "@x".to_owned(),
+                Sensor::Y => "@y".to_owned(),
+                Sensor::ShootX => "@shootX".to_owned(),
+                Sensor::ShootY => "@shootY".to_owned(),
+                Sensor::Size => "@size".to_owned(),
+                Sensor::Dead => "@dead".to_owned(),
+                Sensor::Range => "@range".to_owned(),
+                Sensor::Shooting => "@shooting".to_owned(),
+                Sensor::Boosting => "@boosting".to_owned(),
+                Sensor::MineX => "@mineX".to_owned(),
+                Sensor::MineY => "@mineY".to_owned(),
+                Sensor::Mining => "@mining".to_owned(),
+                Sensor::Speed => "@speed".to_owned(),
+                Sensor::Team => "@team".to_owned(),
+                Sensor::Typeflag => "@typeflag".to_owned(),
+                Sensor::Controlled => "@controlled".to_owned(),
+                Sensor::Controller => "@controller".to_owned(),
+                Sensor::Name => "@name".to_owned(),
+                Sensor::PayloadCount => "@payloadCount".to_owned(),
+                Sensor::PayloadType => "@payloadType".to_owned(),
+                Sensor::Enabled => "@enabled".to_owned(),
+                Sensor::Config => "@config".to_owned(),
+                Sensor::Color => "@color".to_owned(),
+                Sensor::Other(vec) => {
+                    unsafe {
+                        if crate::DEBUG {
+                            CTErr::UnknowConst(vec.clone()).solve();
+                        }
+                    }
+                    vec_to_str(vec)
+                }
+            }
+        )
+    }
+}
+impl From<Vec<char>> for Sensor {
+    fn from(value: Vec<char>) -> Self {
+        let match_text = |text: &str| -> bool {
+            (value.len() == text.len()) && (value == text.chars().collect::<Vec<char>>())
+        };
+        return if match_text("totalItem") {
+            Self::TotalItem
+        } else if match_text("firstItem") {
+            Self::FirstItem
+        } else if match_text("totalLiquids") {
+            Self::TotalLiquids
+        } else if match_text("totalPower") {
+            Self::TotalPower
+        } else if match_text("itemCapacity") {
+            Self::ItemCapacity
+        } else if match_text("liquidCapacity") {
+            Self::LiquidCapacity
+        } else if match_text("powerCapacity") {
+            Self::PowerCapacity
+        } else if match_text("powerNetStored") {
+            Self::PowerNetStored
+        } else if match_text("powerNetCapacity") {
+            Self::PowerNetCapacity
+        } else if match_text("powerNetIn") {
+            Self::PowerNetIn
+        } else if match_text("powerNetOut") {
+            Self::PowerNetOut
+        } else if match_text("ammo") {
+            Self::Ammo
+        } else if match_text("ammoCapacity") {
+            Self::AmmoCapacity
+        } else if match_text("health") {
+            Self::Health
+        } else if match_text("macHealth") {
+            Self::MacHealth
+        } else if match_text("heat") {
+            Self::Heat
+        } else if match_text("efficiency") {
+            Self::Efficiency
+        } else if match_text("prograss") {
+            Self::Prograss
+        } else if match_text("timescale") {
+            Self::Timescale
+        } else if match_text("rotation") {
+            Self::Rotation
+        } else if match_text("x") {
+            Self::X
+        } else if match_text("y") {
+            Self::Y
+        } else if match_text("shootX") {
+            Self::ShootX
+        } else if match_text("shootY") {
+            Self::ShootY
+        } else if match_text("size") {
+            Self::Size
+        } else if match_text("dead") {
+            Self::Dead
+        } else if match_text("range") {
+            Self::Range
+        } else if match_text("shooting") {
+            Self::Shooting
+        } else if match_text("boosting") {
+            Self::Boosting
+        } else if match_text("mineX") {
+            Self::MineX
+        } else if match_text("mineY") {
+            Self::MineY
+        } else if match_text("mining") {
+            Self::Mining
+        } else if match_text("speed") {
+            Self::Speed
+        } else if match_text("team") {
+            Self::Team
+        } else if match_text("typeflag") {
+            Self::Typeflag
+        } else if match_text("controlled") {
+            Self::Controlled
+        } else if match_text("controller") {
+            Self::Controller
+        } else if match_text("name") {
+            Self::Name
+        } else if match_text("payloadCount") {
+            Self::PayloadCount
+        } else if match_text("payloadType") {
+            Self::PayloadType
+        } else if match_text("enabled") {
+            Self::Enabled
+        } else if match_text("config") {
+            Self::Config
+        } else if match_text("color") {
+            Self::Color
+        } else {
+            Self::Other(value)
+        };
+    }
+}
+impl From<&Expr> for Sensor {
+    fn from(value: &Expr) -> Self {
+        match value {
+            Expr::Op(vec) => Self::from(vec.clone()),
+            Expr::Data(vec) => Self::from(vec.clone()),
+            _ => todo!("你发现了Bug,速速上报!"),
         }
     }
 }

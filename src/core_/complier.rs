@@ -8,7 +8,7 @@ mll_rtfr_<FN_NAME>          函数返回
 mll_rtsc_<FN_NAME>          执行函数前保存位置
 mll_rtsw                    switch跳转
 */
-use super::abi::Condition;
+use super::abi::{Condition, Sensor};
 use super::code::Condition as CExpr;
 use super::{
     abi::{LogicCode, Op},
@@ -28,6 +28,7 @@ where
 }
 
 use std::fmt::Debug;
+use std::ops::Deref;
 /*
     代码生成部分
     先编译,再链接
@@ -54,27 +55,75 @@ impl Func {
         }
     }
 }
+
+#[derive(Clone, Copy)]
+enum VulType {
+    Base,
+    Building,
+    Unit,
+}
+
+struct Vul {
+    vul_name: Name,
+    vul_type: VulType,
+}
+impl Deref for Vul {
+    type Target = Name;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vul_name
+    }
+}
+impl Vul {
+    fn new(vul_name: Name, vul_type: VulType) -> Self {
+        Self { vul_name, vul_type }
+    }
+}
+
 // 现存语句数 1是因为恒定有一条跳过所有函数定义的语句
 static mut CODES_LEN: usize = 1;
 // 定义的函数/值
 static mut DEFED_FNS: Vec<Func> = Vec::new();
-static mut DEFED_VUL: Vec<Name> = Vec::new();
+static mut DEFED_VUL: Vec<Vul> = Vec::new();
 // 正在定义的函数
 static mut DEFING_FN: Option<Func> = None;
 // 查询值是否已经定义
 fn lookup_vul(name: &Vec<char>) -> bool {
     unsafe {
         for defed in &DEFED_VUL {
-            if *defed == *name {
+            if defed.vul_name == *name {
                 return true;
             }
         }
     }
     false
 }
-
+fn lookup_vultype(name: &Vec<char>) -> VulType {
+    unsafe {
+        for defed in &DEFED_VUL {
+            if defed.vul_name == *name {
+                return defed.vul_type;
+            }
+        }
+    }
+    VulType::Base
+}
+fn get_ref_vul(name: &Vec<char>) -> &'static mut Vul {
+    unsafe {
+        for r#ref in &mut DEFED_VUL {
+            if r#ref.vul_name == *name {
+                return r#ref;
+            }
+        }
+    }
+    todo!()
+}
 // 别名系统 别名 实际名
 static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
+// 实验性功能:
+// 外部传参: 值类型
+// 仅CallFn设置为其他,其他函数只设置为Base
+static mut SHARE_UVL_TYPE: VulType = VulType::Base;
 
 impl Complite for CtrlDef {
     fn compliet(&self) -> Codes {
@@ -149,10 +198,15 @@ impl Complite for CtrlReturn {
             codes.push(LogicCode::Set(fn_ret_name, possiable_vul))
         } else {
             let codes_len = codes.len();
-            codes[codes_len - 1] = match codes[codes_len - 1].clone() {
-                LogicCode::Op(op, _, lv, rv) => LogicCode::Op(op, fn_ret_name, lv, rv),
-                _ => todo!("你发现了一个Bug,速速反馈!"),
-            };
+            // 重命名: 改用重命名函数
+
+            codes[codes_len].rename_result(fn_ret_name);
+
+            // 旧代码
+            // codes[codes_len - 1] = match codes[codes_len - 1].clone() {
+            //     LogicCode::Op(op, _, lv, rv) => LogicCode::Op(op, fn_ret_name, lv, rv),
+            //     _ => todo!("你发现了一个Bug,速速反馈!"),
+            // };
         }
 
         // 跳转回去
@@ -294,38 +348,140 @@ impl Complite for Set {
         for set in &self.sets {
             // 求值
             let set_vul = codes.link_expr(&set.1);
-            // 赋值
-            codes.push(LogicCode::Set(set.0.clone(), set_vul));
+            // 赋值 类似Return,尽可能采用Rename的方式
+            if codes.len() == 0 {
+                codes.push(LogicCode::Set(set.0.clone(), set_vul));
+            } else {
+                let codes_len = codes.len();
+                codes[codes_len - 1].rename_result(set.0.clone());
+            }
             // 注册状态
+            let this = Vul::new(set.0.clone(), unsafe { SHARE_UVL_TYPE });
             if !lookup_vul(&set.0) {
-                unsafe { DEFED_VUL.push(set.0.clone()) }
+                unsafe { DEFED_VUL.push(this) }
+            } else {
+                // 已经注册,就进行覆盖
+                *get_ref_vul(&set.0) = this;
             }
         }
         return codes;
     }
 }
 // 内建宏      函数名 参数长 实现
-const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 1] = [(
-    "sin",
-    1,
-    &(|args: &Vec<Expr>| -> Codes {
-        let mut codes = Codes::new();
-        let arg0 = codes.link_expr(&args[0]);
-        codes.push(LogicCode::Op(Op::Sin, alloc_name(), arg0, create_data("0")));
-        codes
-    }),
-)];
+const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 7] = [
+    (
+        "sin",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Sin, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "cos",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Cos, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "tan",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Tan, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "asin",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Asin,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "acos",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Acos,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "atan",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Atan,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "get_link",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::GetLink(alloc_name(), arg0));
+            codes
+        }),
+    ),
+];
 
 impl Complite for Expr {
     fn compliet(&self) -> Codes {
         match self {
             Expr::Eoe(l_expr, op, r_expr) => {
+                let op = Op::from(&(**op));
                 let mut codes = Codes::new();
-                // 求取符号两边
-                let lv = codes.link_expr(&l_expr);
-                let rv = codes.link_expr(&r_expr);
-                // 运算行
-                codes.push(LogicCode::Op(Op::from(&(**op)), alloc_name(), lv, rv));
+
+                if matches!(op, Op::Sensor) {
+                    // 特殊情况:成员访问运算符(Sensor语句)
+                    let lv = codes.link_expr(&l_expr);
+
+                    // 错误处理
+                    if matches!(lookup_vultype(&lv), VulType::Base) {
+                        CTErr::SensorBasetype(lv.clone()).solve();
+                    }
+
+                    let sensor = Sensor::from(&(**r_expr));
+                    codes.push(LogicCode::Sensor(alloc_name(), lv, sensor))
+                } else {
+                    // 普通情况
+                    // 求取符号两边
+                    let lv = codes.link_expr(&l_expr);
+                    let rv = codes.link_expr(&r_expr);
+                    // 运算行
+                    codes.push(LogicCode::Op(op, alloc_name(), lv, rv));
+                }
                 codes
             }
             Expr::Oe(op, vul) => {
@@ -450,9 +606,11 @@ impl Complite for Expr {
 pub trait Link {
     fn link(&mut self, add_codes: &mut Self);
     fn link_expr(&mut self, expr: &Expr) -> Name;
-    fn link_xcon(&mut self, condition: &CExpr) -> usize;
-    fn link_cond(&mut self, condition: &CExpr) -> usize;
-    fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complite>>);
+    fn link_xcon(&mut self, condition: &CExpr) -> usize; // link反转条件
+    fn link_cond(&mut self, condition: &CExpr) -> usize; // link条件
+    fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complite>>); // link未编译语句块
+
+    // fn link_rnep(&mut self, new_name: Name); // link并且重命名结果
 }
 impl Link for Codes {
     fn link(&mut self, add_codes: &mut Self) {
@@ -466,7 +624,6 @@ impl Link for Codes {
         }
         (*base_codes).append(add_codes);
     }
-
     fn link_expr(&mut self, expr: &Expr) -> Name {
         let mut codes = expr.compliet();
         self.link(&mut codes);
@@ -474,13 +631,20 @@ impl Link for Codes {
         return match self[self_len - 1].clone() {
             LogicCode::Set(_, vul) => {
                 self.remove(self_len - 1);
+                unsafe { SHARE_UVL_TYPE = VulType::Base }
                 vul.clone()
             }
-            LogicCode::Op(_, vul, _, _) => vul.clone(),
-            _ => todo!(),
+            LogicCode::Op(_, vul, _, _) => {
+                unsafe { SHARE_UVL_TYPE = VulType::Base }
+                vul.clone()
+            }
+            LogicCode::GetLink(..) => {
+                unsafe { SHARE_UVL_TYPE = VulType::Building }
+                create_data("0")
+            }
+            _ => create_data("0"),
         };
     }
-
     fn link_xcon(&mut self, condition: &CExpr) -> usize {
         // 链接两条件
         let le = self.link_expr(&condition.lexpr);

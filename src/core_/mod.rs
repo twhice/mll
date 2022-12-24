@@ -141,22 +141,29 @@ pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
 
     // 编译链接
     let mut codes = Vec::new();
-    let mut remove_indexs: Vec<bool> = Vec::new();
+    let mut indexs_isdef: Vec<bool> = Vec::new();
+    let mut codes_withdef = false;
     codes.push(jump_always());
 
     // 先定义所有函数
     for i in 0..com_units.len() {
         if com_units[i].is_def() {
             codes.link(&mut com_units[i].compliet());
-            remove_indexs.push(false);
+            indexs_isdef.push(false);
+            codes_withdef = true;
             continue;
         }
-        remove_indexs.push(true)
+        indexs_isdef.push(true)
     }
-    let codes_len = codes.len();
-    codes[0].reset_target(codes_len);
+    // 如果没有def就去掉跳过函数定义的行
+    if codes_withdef {
+        let codes_len = codes.len();
+        codes[0].reset_target(codes_len);
+    } else {
+        codes.remove(0);
+    }
     for i in 0..com_units.len() {
-        if remove_indexs[i] {
+        if indexs_isdef[i] {
             codes.link(&mut com_units[i].compliet());
         }
     }

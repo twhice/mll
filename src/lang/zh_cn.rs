@@ -50,16 +50,32 @@ pub fn cte_solve(err: &CTErr) {
         CTErr::UnknowFn(fn_name) => {
             println!("警告: 无法查询函数 \"{}\"的定义", vec_to_str(fn_name));
         }
+        CTErr::UnknowConst(const_name) => {
+            println!(
+                "警告: 你在使用自定义数据 \"{}\" 作为unit_bind,sensor或者其他宏的参数,这可能引起bug",
+                vec_to_str(const_name)
+            );
+        }
+        CTErr::SensorBasetype(name) => {
+            println!(
+                "警告: 变量\"{}\"的类型是基础类型,对它进行Sensor操作可能产生意料之外的结果",
+                vec_to_str(name)
+            );
+        }
         CTErr::ProcessTooLong => {
             println!("警告: 编译后的代码行数大于999,将无法执行!请重构代码");
         }
         CTErr::DefinDef(fnn1, fnn2) => {
-            println!("在函数{}中定义了函数{}", vec_to_str(fnn1), vec_to_str(fnn2));
+            println!(
+                "错误: 在函数{}中定义了函数{}",
+                vec_to_str(fnn1),
+                vec_to_str(fnn2)
+            );
             println!("暂不支持闭包,不可在函数中定义函数!");
             exit(1);
         }
         CTErr::CallFninDef(fnn) => {
-            println!("在函数{}中调用了自身", vec_to_str(fnn));
+            println!("错误: 在函数{}中调用了自身", vec_to_str(fnn));
             println!("暂不支持递归,不可在函数中定义函数!");
             exit(1);
         }
