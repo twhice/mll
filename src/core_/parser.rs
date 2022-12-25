@@ -15,17 +15,17 @@ Num     = ..
 */
 
 use super::code::*;
-use super::complier::Complite;
+use super::complier::Complie;
 use super::{Pos, Token, TokenType};
 use crate::error::{Err, ErrMeg};
 
-pub fn parser(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+pub fn parser(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     match com_unit(tokens) {
         Ok(cu) => Ok(cu),
         Err(err) => return Err(err),
     }
 }
-fn com_unit(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn com_unit(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     let keytoken = &tokens[0];
     if keytoken.match_text("set") {
         set(tokens)
@@ -49,7 +49,7 @@ fn com_unit(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
         return Ok(Box::new(Expr::CallFn(fn_name, args)));
     }
 }
-fn set(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn set(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     tokens.remove(0);
     let mut sets = Vec::new();
     loop {
@@ -73,7 +73,7 @@ fn set(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
 
     return Ok(Box::new(Set::new(sets)));
 }
-fn ctrl_if(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn ctrl_if(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     tokens.remove(0);
     let condition = tokens_get_condition(tokens)?;
 
@@ -97,7 +97,7 @@ fn ctrl_if(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
         else_statements,
     )));
 }
-fn ctrl_while(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn ctrl_while(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     // tokens_match_err(tokens, "while")?;
     // skip sth
     tokens.remove(0);
@@ -107,7 +107,7 @@ fn ctrl_while(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     let statements = tokens_get_block(tokens)?;
     return Ok(Box::new(CtrlWhile::new(condition, statements)));
 }
-fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     // skip sth
     tokens.remove(0);
     // "condition"
@@ -120,12 +120,12 @@ fn ctrl_switch(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
     }
     return Ok(Box::new(CtrlSwitch::new(condition, cases)));
 }
-fn ctrl_return(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn ctrl_return(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     tokens_match_err(tokens, "return")?;
     let expr = tokens_build_expr(tokens)?;
     return Ok(Box::new(CtrlReturn::new(expr)));
 }
-fn ctrl_def(tokens: &mut Vec<Token>) -> Result<Box<dyn Complite>, ErrMeg> {
+fn ctrl_def(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     // tokens_match_err(tokens, "pg")?;
     tokens.remove(0);
     let fn_name = tokens_get_name(tokens)?;
@@ -208,7 +208,7 @@ fn tokens_get_first(tokens: &mut Vec<Token>) -> Result<&Token, ErrMeg> {
         return Err(ErrMeg::new(Pos::new(), Err::Empty));
     }
 }
-fn tokens_get_block(tokens: &mut Vec<Token>) -> Result<Vec<Box<dyn Complite>>, ErrMeg> {
+fn tokens_get_block(tokens: &mut Vec<Token>) -> Result<Vec<Box<dyn Complie>>, ErrMeg> {
     if let Err(err) = tokens_match_err(tokens, "{") {
         match err.err {
             Err::Empty => return Err(err),
@@ -371,13 +371,13 @@ fn expr_priotity(expr: &Expr) -> usize {
             let fuck = [
                 vec![" "],
                 vec!["."], // 实验性功能,伪oo
-                vec!["!", "**"],
+                vec!["**"],
                 vec!["*", "/"],
                 vec!["+", "-"],
                 vec!["<<", ">>"],
                 vec![">", "<", ">=", "<="],
                 vec!["!=", "=="],
-                vec!["&", "&&", "|", "||", "^"],
+                vec!["&", "&&", "|", "||", "^", "!"],
                 // vec![")"],
             ];
             for priotity in 0..fuck.len() {

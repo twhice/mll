@@ -148,7 +148,7 @@ pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
     // 先定义所有函数
     for i in 0..com_units.len() {
         if com_units[i].is_def() {
-            codes.link(&mut com_units[i].compliet());
+            codes.link(&mut com_units[i].complie());
             indexs_isdef.push(false);
             codes_withdef = true;
             continue;
@@ -164,7 +164,7 @@ pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
     }
     for i in 0..com_units.len() {
         if indexs_isdef[i] {
-            codes.link(&mut com_units[i].compliet());
+            codes.link(&mut com_units[i].complie());
         }
     }
 
@@ -172,7 +172,7 @@ pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
     for code in codes {
         mdt_codes.push(code.to_string());
     }
-
+    mdt_codes.push("end".to_owned());
     if mdt_codes.len() > 999 {
         crate::error::CTErr::ProcessTooLong.solve()
     }

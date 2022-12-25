@@ -64,10 +64,15 @@ pub enum LogicCode {
     GetLink(Name, Name),
     // sensor result block1 @copper
     Sensor(Name, Name, Sensor),
+
+    UnitBind(Name),
+    UnitControl(Name, Name, Name, Name, Name),
+    UnitLocate(BuildingQuery, Name, Name, Name, Name, Name),
+    // ControlEnabled(Name, Name),
 }
 impl Display for LogicCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match &self {
             LogicCode::Set(l, r) => write!(f, "set {} {}", vec_to_str(l), vec_to_str(r)),
             LogicCode::Jump(t, c, l, r) => write!(
                 f,
@@ -91,6 +96,26 @@ impl Display for LogicCode {
                 vec_to_str(r),
                 vec_to_str(n),
                 s.to_string()
+            ),
+            LogicCode::UnitBind(t) => write!(f, "ubind {}", vec_to_str(t)),
+            LogicCode::UnitControl(a, b, c, d, e) => write!(
+                f,
+                "ucontrol {} {} {} {} {}",
+                vec_to_str(a),
+                vec_to_str(b),
+                vec_to_str(c),
+                vec_to_str(d),
+                vec_to_str(e),
+            ),
+            LogicCode::UnitLocate(q, e, x, y, find, b) => write!(
+                f,
+                "ulocate {} {} @copper {} {} {} {}",
+                q.to_string(),
+                vec_to_str(e),
+                vec_to_str(x),
+                vec_to_str(y),
+                vec_to_str(find),
+                vec_to_str(b),
             ),
         }
     }
@@ -311,6 +336,8 @@ impl From<Vec<char>> for Op {
             Self::NotEqual
         } else if match_text(".") {
             Self::Sensor
+        } else if match_text("!") {
+            Self::Not
         } else {
             todo!()
         };
@@ -529,6 +556,40 @@ impl From<Vec<char>> for Sensor {
     }
 }
 impl From<&Expr> for Sensor {
+    fn from(value: &Expr) -> Self {
+        match value {
+            Expr::Op(vec) => Self::from(vec.clone()),
+            Expr::Data(vec) => Self::from(vec.clone()),
+            _ => todo!("你发现了Bug,速速上报!"),
+        }
+    }
+}
+#[derive(Clone)]
+pub enum BuildingQuery {
+    Core,
+    Other(Name),
+}
+impl Display for BuildingQuery {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuildingQuery::Core => write!(f, "building core"),
+            BuildingQuery::Other(n) => write!(f, "{}", vec_to_str(n)),
+        }
+    }
+}
+impl From<Vec<char>> for BuildingQuery {
+    fn from(value: Vec<char>) -> Self {
+        let match_text = |text: &str| -> bool {
+            (value.len() == text.len()) && (value == text.chars().collect::<Vec<char>>())
+        };
+        return if match_text("core") {
+            Self::Core
+        } else {
+            Self::Other(value)
+        };
+    }
+}
+impl From<&Expr> for BuildingQuery {
     fn from(value: &Expr) -> Self {
         match value {
             Expr::Op(vec) => Self::from(vec.clone()),

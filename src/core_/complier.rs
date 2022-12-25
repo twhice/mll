@@ -8,7 +8,7 @@ mll_rtfr_<FN_NAME>          函数返回
 mll_rtsc_<FN_NAME>          执行函数前保存位置
 mll_rtsw                    switch跳转
 */
-use super::abi::{Condition, Sensor};
+use super::abi::{BuildingQuery, Condition, Sensor};
 use super::code::Condition as CExpr;
 use super::{
     abi::{LogicCode, Op},
@@ -16,11 +16,11 @@ use super::{
 };
 use crate::error::CTErr;
 use crate::lang::vec_to_str;
-pub trait Complite
+pub trait Complie
 where
     Self: Debug,
 {
-    fn compliet(&self) -> Codes;
+    fn complie(&self) -> Codes;
     // 我是傻逼
     fn is_def(&self) -> bool {
         false
@@ -118,6 +118,16 @@ fn get_ref_vul(name: &Vec<char>) -> &'static mut Vul {
     }
     todo!()
 }
+fn update_vul(name: &Vec<char>, r#type: VulType) {
+    // 截取自旧(2022-12-25前)impl Complie for Set
+    let this = Vul::new(name.clone(), r#type);
+    if !lookup_vul(&name) {
+        unsafe { DEFED_VUL.push(this) }
+    } else {
+        // 已经注册,就进行覆盖
+        *get_ref_vul(&name) = this;
+    }
+}
 // 别名系统 别名 实际名
 static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
 // 实验性功能:
@@ -125,8 +135,8 @@ static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
 // 仅CallFn设置为其他,其他函数只设置为Base
 static mut SHARE_UVL_TYPE: VulType = VulType::Base;
 
-impl Complite for CtrlDef {
-    fn compliet(&self) -> Codes {
+impl Complie for CtrlDef {
+    fn complie(&self) -> Codes {
         // 避免SHARD覆盖,不允许函数中定义函数
         unsafe {
             if let Some(defing_fn) = &DEFING_FN {
@@ -172,8 +182,8 @@ impl Complite for CtrlDef {
         true
     }
 }
-impl Complite for CtrlReturn {
-    fn compliet(&self) -> Codes {
+impl Complie for CtrlReturn {
+    fn complie(&self) -> Codes {
         // 获取函数名,过滤意义不明的return
         let fn_name = vec_to_str(unsafe {
             match &DEFING_FN {
@@ -217,8 +227,8 @@ impl Complite for CtrlReturn {
         return codes;
     }
 }
-impl Complite for CtrlIf {
-    fn compliet(&self) -> Codes {
+impl Complie for CtrlIf {
+    fn complie(&self) -> Codes {
         // 准备储存跳转行的一些tag,结束行的一些tag
         let mut codes = Codes::new();
         let mut jump_tags: Vec<usize> = Vec::new();
@@ -273,8 +283,8 @@ impl Complite for CtrlIf {
         return codes;
     }
 }
-impl Complite for CtrlSwitch {
-    fn compliet(&self) -> Codes {
+impl Complie for CtrlSwitch {
+    fn complie(&self) -> Codes {
         // 虚拟容器
         let mut codess: Vec<Codes> = Vec::new();
 
@@ -324,8 +334,8 @@ impl Complite for CtrlSwitch {
         return codes;
     }
 }
-impl Complite for CtrlWhile {
-    fn compliet(&self) -> Codes {
+impl Complie for CtrlWhile {
+    fn complie(&self) -> Codes {
         let mut codes = Codes::new();
         // 判断语句的位置
         let taga = codes.link_xcon(&self.condition);
@@ -334,15 +344,15 @@ impl Complite for CtrlWhile {
         codes.push(jump_always());
         // 避免冲突,获取长
         let codes_len = codes.len();
-        // 最后一条语句指向判断语句
-        codes[codes_len - 1].reset_target(taga);
+        // 最后一条语句指向第一条语句
+        codes[codes_len - 1].reset_target(0);
         // 判断语句指空
         codes[taga].reset_target(codes_len);
         return codes;
     }
 }
-impl Complite for Set {
-    fn compliet(&self) -> Codes {
+impl Complie for Set {
+    fn complie(&self) -> Codes {
         let mut codes = Codes::new();
         // 遍历set组合
         for set in &self.sets {
@@ -350,25 +360,28 @@ impl Complite for Set {
             let set_vul = codes.link_expr(&set.1);
             // 赋值 类似Return,尽可能采用Rename的方式
             if codes.len() == 0 {
-                codes.push(LogicCode::Set(set.0.clone(), set_vul));
+                // 值是有属性的量,就篡改类型!
+                let vul_type = lookup_vultype(&set_vul);
+
+                if set_vul == "@unit".chars().collect::<Vec<char>>() {
+                    unsafe { SHARE_UVL_TYPE = VulType::Unit }
+                } else if !matches!(vul_type, VulType::Base) {
+                    unsafe { SHARE_UVL_TYPE = vul_type }
+                } else {
+                    codes.push(LogicCode::Set(set.0.clone(), set_vul));
+                }
             } else {
                 let codes_len = codes.len();
                 codes[codes_len - 1].rename_result(set.0.clone());
             }
             // 注册状态
-            let this = Vul::new(set.0.clone(), unsafe { SHARE_UVL_TYPE });
-            if !lookup_vul(&set.0) {
-                unsafe { DEFED_VUL.push(this) }
-            } else {
-                // 已经注册,就进行覆盖
-                *get_ref_vul(&set.0) = this;
-            }
+            update_vul(&set.0.clone(), unsafe { SHARE_UVL_TYPE })
         }
         return codes;
     }
 }
 // 内建宏      函数名 参数长 实现
-const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 7] = [
+const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 12] = [
     (
         "sin",
         1,
@@ -454,10 +467,107 @@ const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 7] = [
             codes
         }),
     ),
+    // 简易语句(2022 12 24)
+    (
+        "ubind",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::UnitBind(arg0));
+            codes
+        }),
+    ),
+    (
+        "umove",
+        2,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let x = codes.link_expr(&args[0]);
+            let y = codes.link_expr(&args[1]);
+            codes.push(LogicCode::UnitControl(
+                create_data("move"),
+                x,
+                y,
+                create_data("0"),
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "ulocate",
+        6,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let target = BuildingQuery::from(&args[0]);
+            let is_enemy = codes.link_expr(&args[1]);
+            let name_of_x = args[2].get_data();
+            let name_of_y = args[3].get_data();
+            let name_of_ifcound = args[4].get_data();
+            let name_of_building = args[5].get_data();
+
+            update_vul(&name_of_x, VulType::Base);
+            update_vul(&name_of_y, VulType::Base);
+            update_vul(&name_of_ifcound, VulType::Base);
+            update_vul(&name_of_building, VulType::Building);
+
+            codes.push(LogicCode::UnitLocate(
+                target,
+                is_enemy,
+                name_of_x,
+                name_of_y,
+                name_of_ifcound,
+                name_of_building,
+            ));
+            codes
+        }),
+    ),
+    (
+        "uidrop",
+        2,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+
+            let target = codes.link_expr(&args[0]);
+            let item_number = codes.link_expr(&args[1]);
+            codes.push(LogicCode::UnitControl(
+                create_data("itemDrop"),
+                target,
+                item_number,
+                create_data("0"),
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "uitake",
+        3,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let target = codes.link_expr(&args[0]);
+            let arg1_data = args[1].get_data();
+            let item_name = if arg1_data == Vec::new() {
+                codes.link_expr(&args[1])
+            } else {
+                arg1_data
+            };
+            let item_number = codes.link_expr(&args[2]);
+            codes.push(LogicCode::UnitControl(
+                create_data("itemTake"),
+                target,
+                item_name,
+                item_number,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
 ];
 
-impl Complite for Expr {
-    fn compliet(&self) -> Codes {
+impl Complie for Expr {
+    fn complie(&self) -> Codes {
         match self {
             Expr::Eoe(l_expr, op, r_expr) => {
                 let op = Op::from(&(**op));
@@ -608,7 +718,7 @@ pub trait Link {
     fn link_expr(&mut self, expr: &Expr) -> Name;
     fn link_xcon(&mut self, condition: &CExpr) -> usize; // link反转条件
     fn link_cond(&mut self, condition: &CExpr) -> usize; // link条件
-    fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complite>>); // link未编译语句块
+    fn link_cmus(&mut self, complier_units: &Vec<Box<dyn Complie>>); // link未编译语句块
 
     // fn link_rnep(&mut self, new_name: Name); // link并且重命名结果
 }
@@ -625,7 +735,7 @@ impl Link for Codes {
         (*base_codes).append(add_codes);
     }
     fn link_expr(&mut self, expr: &Expr) -> Name {
-        let mut codes = expr.compliet();
+        let mut codes = expr.complie();
         self.link(&mut codes);
         let self_len = self.len();
         return match self[self_len - 1].clone() {
@@ -642,6 +752,7 @@ impl Link for Codes {
                 unsafe { SHARE_UVL_TYPE = VulType::Building }
                 create_data("0")
             }
+            LogicCode::Sensor(r, ..) => r.clone(),
             _ => create_data("0"),
         };
     }
@@ -727,9 +838,9 @@ impl Link for Codes {
         }
         return self.len() - 1;
     }
-    fn link_cmus(&mut self, complie_units: &Vec<Box<dyn Complite>>) {
+    fn link_cmus(&mut self, complie_units: &Vec<Box<dyn Complie>>) {
         for complie_unit in complie_units {
-            self.link(&mut complie_unit.compliet());
+            self.link(&mut complie_unit.complie());
         }
     }
 }

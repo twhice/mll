@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
-type T = Box<dyn Complite>;
+type T = Box<dyn Complie>;
 
-use super::{complier::Complite, Token};
+use super::{complier::Complie, Token};
 pub struct Set {
     pub sets: Vec<(Vec<char>, Expr)>,
 }
@@ -146,6 +146,12 @@ impl Expr {
             *op == "!".chars().collect::<Vec<char>>()
         } else {
             false
+        }
+    }
+    pub fn get_data(&self) -> Vec<char> {
+        match self {
+            Expr::Data(r) => r.clone(),
+            _ => Vec::new(),
         }
     }
 }
