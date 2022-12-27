@@ -172,7 +172,10 @@ pub fn complie(src: String, filename: &str) -> Result<Vec<String>, ErrMeg> {
     for code in codes {
         mdt_codes.push(code.to_string());
     }
-    mdt_codes.push("end".to_owned());
+    mdt_codes.push(
+        "set 代码由mll(v0.0.1be)生成 开源地址:https://github.com/twhice/mindustry-logic-language"
+            .to_owned(),
+    );
     if mdt_codes.len() > 999 {
         crate::error::CTErr::ProcessTooLong.solve()
     }

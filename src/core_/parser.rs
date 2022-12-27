@@ -39,6 +39,8 @@ fn com_unit(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
         ctrl_return(tokens)
     } else if keytoken.match_text("while") {
         ctrl_while(tokens)
+    } else if keytoken.match_text("repeat") {
+        ctrl_repeat_until(tokens)
     } else {
         let fn_name = keytoken.get_text().clone();
         tokens.remove(0);
@@ -167,6 +169,14 @@ fn ctrl_def(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
     };
     let statements = tokens_get_block(tokens)?;
     return Ok(Box::new(CtrlDef::new(fn_name, args, statements)));
+}
+fn ctrl_repeat_until(tokens: &mut Vec<Token>) -> Result<Box<dyn Complie>, ErrMeg> {
+    // 惯例
+    tokens.remove(0);
+    let statements = tokens_get_block(tokens)?;
+    tokens_match_err(tokens, "until")?;
+    let condition = tokens_get_condition(tokens)?;
+    Ok(Box::new(CtrlRepeatUntil::new(statements, condition)))
 }
 fn tokens_match_err<'a>(tokens: &'a mut Vec<Token>, text: &'a str) -> Result<(), ErrMeg> {
     let token = tokens_get_first(tokens)?;
@@ -371,13 +381,13 @@ fn expr_priotity(expr: &Expr) -> usize {
             let fuck = [
                 vec![" "],
                 vec!["."], // 实验性功能,伪oo
-                vec!["**"],
+                vec!["**", "!"],
                 vec!["*", "/"],
                 vec!["+", "-"],
                 vec!["<<", ">>"],
                 vec![">", "<", ">=", "<="],
                 vec!["!=", "=="],
-                vec!["&", "&&", "|", "||", "^", "!"],
+                vec!["&", "&&", "|", "||", "^"],
                 // vec![")"],
             ];
             for priotity in 0..fuck.len() {

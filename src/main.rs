@@ -15,7 +15,8 @@ Copyright (C) 2022  异月(twhice)
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 use mindustry_logic_language::*;
-use std::process::ExitCode;
+use std::io::Write;
+use std::{fs::File, process::ExitCode};
 
 fn main() -> ExitCode {
     let argument = if true {
@@ -39,9 +40,11 @@ fn main() -> ExitCode {
         println!("{}", get_buildin_meg(&Meg::Version))
     } else {
         let inf = argument.input_file_path.clone();
-        // let outf = argument.output_file_path.clone();
+        let outf = argument.output_file_path.clone();
+        let print = argument.print_to_stdout;
         unsafe {
             DEBUG = argument.show_debug_meg;
+            WARN_MEG = argument.show_warn_meg;
         }
         let src = match std::fs::read_to_string(argument.input_file_path.clone()) {
             Ok(src) => src,
@@ -53,12 +56,20 @@ fn main() -> ExitCode {
         // let mut sentens: Vec<Vec<String>> = Vec::new();
         match complie(src, &inf) {
             Ok(result) => {
-                println!("编译结束!结果如下");
-                println!("====================");
-                for mdt_code in result {
-                    println!("{}", mdt_code)
+                // 不将就了!
+                if print {
+                    println!("编译结束!结果如下");
+                    println!("====================");
+                    for mdt_code in result {
+                        println!("{}", mdt_code)
+                    }
+                    println!("====================");
+                } else {
+                    let mut output_file = File::create(outf).unwrap();
+                    for line in result {
+                        write!(output_file, "{line}\n").unwrap();
+                    }
                 }
-                println!("====================");
             }
             Err(err) => {
                 println!("{}", err);

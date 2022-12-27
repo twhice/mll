@@ -8,20 +8,25 @@ pub struct Argument {
     pub show_debug_meg: bool,
     pub get_help: bool,
     pub get_version: bool,
+    pub show_warn_meg: bool,
+    pub print_to_stdout: bool,
 }
 
 impl Argument {
     pub fn new() -> Self {
         Self {
             input_file_path: String::new(),
-            output_file_path: String::new(),
+            output_file_path: String::from("output.mdtc"),
             show_debug_meg: false,
             get_help: false,
             get_version: false,
+            show_warn_meg: false,
+            print_to_stdout: false,
         }
     }
 }
 pub static mut DEBUG: bool = false;
+pub static mut WARN_MEG: bool = false;
 // pub use core::lexer;
 const LANGUAGE: lang::Language = lang::Language::Chinese;
 
@@ -67,3 +72,65 @@ pub use io::build_args;
 pub use io::Meg;
 pub use lang::get_buildin_meg;
 pub use lang::get_errmeg;
+pub type Name = Vec<char>;
+use std::fmt::Display;
+
+pub trait Include<T>
+where
+    T: PartialEq,
+{
+    fn include(&self, other: T) -> bool;
+}
+impl<T> Include<T> for [T]
+where
+    T: PartialEq,
+{
+    fn include(&self, other: T) -> bool {
+        for e in self {
+            if *e == other {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+pub trait AllToString<T>
+where
+    T: Display,
+{
+    fn all_to_string(&self) -> String;
+}
+impl<T> AllToString<T> for [T]
+where
+    T: Display,
+{
+    fn all_to_string(&self) -> String {
+        let mut all = String::new();
+        for e in self {
+            all += e.to_string().as_str()
+        }
+        return all;
+    }
+}
+
+pub trait IntoName {
+    fn into(self) -> Vec<char>;
+}
+impl IntoName for &str {
+    fn into(self) -> Vec<char> {
+        self.chars().collect()
+    }
+}
+pub trait ToString {
+    fn to_string(&self) -> String;
+}
+impl ToString for Name {
+    fn to_string(&self) -> String {
+        let mut ret = String::new();
+        for c in self {
+            ret += c.to_string().as_str();
+        }
+        ret
+    }
+}

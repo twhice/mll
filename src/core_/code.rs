@@ -20,7 +20,6 @@ impl Debug for Set {
         write!(f, "{}", ret)
     }
 }
-
 impl Set {
     pub fn new(sets: Vec<(Vec<char>, Expr)>) -> Self {
         Self { sets }
@@ -71,7 +70,6 @@ pub struct CtrlDef {
     pub args: Vec<Vec<char>>,
     pub statement: Vec<T>,
 }
-
 impl CtrlDef {
     pub fn new(fn_name: Vec<char>, args: Vec<Vec<char>>, statement: Vec<T>) -> Self {
         Self {
@@ -86,7 +84,6 @@ pub struct CtrlWhile {
     pub condition: Condition,
     pub statements: Vec<T>,
 }
-
 impl CtrlWhile {
     pub fn new(condition: Condition, statements: Vec<T>) -> Self {
         Self {
@@ -101,7 +98,6 @@ pub struct CtrlSwitch {
     pub condition: Expr,
     pub cases: Vec<Vec<T>>,
 }
-
 impl CtrlSwitch {
     pub fn new(condition: Expr, cases: Vec<Vec<T>>) -> Self {
         Self { condition, cases }
@@ -112,12 +108,26 @@ impl CtrlSwitch {
 pub struct CtrlReturn {
     pub return_vul: Expr,
 }
-
 impl CtrlReturn {
     pub fn new(return_vul: Expr) -> Self {
         Self { return_vul }
     }
 }
+
+#[derive(Debug)]
+pub struct CtrlRepeatUntil {
+    pub statements: Vec<T>,
+    pub condition: Condition,
+}
+impl CtrlRepeatUntil {
+    pub fn new(statements: Vec<T>, condition: Condition) -> Self {
+        Self {
+            statements,
+            condition,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum Expr {
     Eoe(Box<Expr>, Box<Expr>, Box<Expr>),
@@ -204,7 +214,6 @@ pub struct Condition {
     pub op: Vec<char>,
     pub rexpr: Expr,
 }
-
 impl Condition {
     pub fn new(lexpr: Expr, op: Vec<char>, rexpr: Expr) -> Self {
         Self { lexpr, op, rexpr }

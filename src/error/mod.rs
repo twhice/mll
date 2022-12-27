@@ -57,7 +57,7 @@ impl Display for Err {
 pub enum CTErr {
     UnknowFn(Vec<char>),
     UnknowConst(Vec<char>),
-    SensorBasetype(Vec<char>),
+    SensorTypeUnmatch(Vec<char>, String, Vec<char>, usize, String),
     DefinDef(Vec<char>, Vec<char>),
     UnknowReturn,
     ProcessTooLong,

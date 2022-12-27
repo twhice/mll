@@ -1,11 +1,13 @@
+set_enabled(switch1,0)
 # 检测是否开机
-while start!=1{
+# 新方法
+repeat {
     set start = switch1.enabled
-}
+} until start == 1 
 # 检测是否已经选择弹药 并且读取配置
-while ammo == null{
+repeat {
     set ammo  = sorter1.config
-}
+} until ammo != null
 # 从id==2开始遍历建筑
 set i = 2
 while i<@links {

@@ -1,6 +1,7 @@
-use super::super::lang::vec_to_str;
 use super::code::Expr;
+use super::complier::VulType;
 use crate::error::{CTErr, Err};
+use crate::ToString;
 use std::fmt::{Debug, Display};
 
 type Name = Vec<char>;
@@ -63,60 +64,62 @@ pub enum LogicCode {
     // getlink result 0
     GetLink(Name, Name),
     // sensor result block1 @copper
-    Sensor(Name, Name, Sensor),
+    Sensor(Name, Name, Senseabled),
 
     UnitBind(Name),
     UnitControl(Name, Name, Name, Name, Name),
-    UnitLocate(BuildingQuery, Name, Name, Name, Name, Name),
-    // ControlEnabled(Name, Name),
+    UnitLocate(Target, Name, Name, Name, Name, Name),
+
+    QuickilyAdded(Name),
 }
 impl Display for LogicCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self {
-            LogicCode::Set(l, r) => write!(f, "set {} {}", vec_to_str(l), vec_to_str(r)),
+            LogicCode::Set(l, r) => write!(f, "set {} {}", l.to_string(), r.to_string()),
             LogicCode::Jump(t, c, l, r) => write!(
                 f,
                 "jump {t} {} {} {}",
                 c.to_string(),
-                vec_to_str(l),
-                vec_to_str(r)
+                l.to_string(),
+                r.to_string()
             ),
             LogicCode::Op(o, t, l, r) => write!(
                 f,
                 "op {} {} {} {}",
                 o.to_string(),
-                vec_to_str(t),
-                vec_to_str(l),
-                vec_to_str(r)
+                t.to_string(),
+                l.to_string(),
+                r.to_string()
             ),
-            LogicCode::GetLink(r, i) => write!(f, "getlink {} {}", vec_to_str(r), vec_to_str(i)),
+            LogicCode::GetLink(r, i) => write!(f, "getlink {} {}", r.to_string(), i.to_string()),
             LogicCode::Sensor(r, n, s) => write!(
                 f,
                 "sensor {} {} {}",
-                vec_to_str(r),
-                vec_to_str(n),
+                r.to_string(),
+                n.to_string(),
                 s.to_string()
             ),
-            LogicCode::UnitBind(t) => write!(f, "ubind {}", vec_to_str(t)),
+            LogicCode::UnitBind(t) => write!(f, "ubind {}", t.to_string()),
             LogicCode::UnitControl(a, b, c, d, e) => write!(
                 f,
                 "ucontrol {} {} {} {} {}",
-                vec_to_str(a),
-                vec_to_str(b),
-                vec_to_str(c),
-                vec_to_str(d),
-                vec_to_str(e),
+                a.to_string(),
+                b.to_string(),
+                c.to_string(),
+                d.to_string(),
+                e.to_string(),
             ),
             LogicCode::UnitLocate(q, e, x, y, find, b) => write!(
                 f,
                 "ulocate {} {} @copper {} {} {} {}",
                 q.to_string(),
-                vec_to_str(e),
-                vec_to_str(x),
-                vec_to_str(y),
-                vec_to_str(find),
-                vec_to_str(b),
+                e.to_string(),
+                x.to_string(),
+                y.to_string(),
+                find.to_string(),
+                b.to_string(),
             ),
+            LogicCode::QuickilyAdded(cmd) => write!(f, "{}", cmd.to_string()),
         }
     }
 }
@@ -352,7 +355,7 @@ impl From<&Expr> for Op {
     }
 }
 #[derive(Clone)]
-pub enum Sensor {
+pub enum Senseabled {
     TotalItem,
     FirstItem,
     TotalLiquids,
@@ -398,68 +401,68 @@ pub enum Sensor {
     Color,
     Other(Name),
 }
-impl Display for Sensor {
+impl Display for Senseabled {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "{}",
             match &self {
-                Sensor::TotalItem => "@totalItem".to_owned(),
-                Sensor::FirstItem => "@firstItem".to_owned(),
-                Sensor::TotalLiquids => "@totalLiquids".to_owned(),
-                Sensor::TotalPower => "@totalPower".to_owned(),
-                Sensor::ItemCapacity => "@itemCapacity".to_owned(),
-                Sensor::LiquidCapacity => "@liquidCapacity".to_owned(),
-                Sensor::PowerCapacity => "@powerCapacity".to_owned(),
-                Sensor::PowerNetStored => "@powerNetStored".to_owned(),
-                Sensor::PowerNetCapacity => "@powerNetCapacity".to_owned(),
-                Sensor::PowerNetIn => "@powerNetIn".to_owned(),
-                Sensor::PowerNetOut => "@powerNetOut".to_owned(),
-                Sensor::Ammo => "@ammo".to_owned(),
-                Sensor::AmmoCapacity => "@ammoCapacity".to_owned(),
-                Sensor::Health => "@health".to_owned(),
-                Sensor::MacHealth => "@macHealth".to_owned(),
-                Sensor::Heat => "@heat".to_owned(),
-                Sensor::Efficiency => "@efficiency".to_owned(),
-                Sensor::Prograss => "@prograss".to_owned(),
-                Sensor::Timescale => "@timescale".to_owned(),
-                Sensor::Rotation => "@rotation".to_owned(),
-                Sensor::X => "@x".to_owned(),
-                Sensor::Y => "@y".to_owned(),
-                Sensor::ShootX => "@shootX".to_owned(),
-                Sensor::ShootY => "@shootY".to_owned(),
-                Sensor::Size => "@size".to_owned(),
-                Sensor::Dead => "@dead".to_owned(),
-                Sensor::Range => "@range".to_owned(),
-                Sensor::Shooting => "@shooting".to_owned(),
-                Sensor::Boosting => "@boosting".to_owned(),
-                Sensor::MineX => "@mineX".to_owned(),
-                Sensor::MineY => "@mineY".to_owned(),
-                Sensor::Mining => "@mining".to_owned(),
-                Sensor::Speed => "@speed".to_owned(),
-                Sensor::Team => "@team".to_owned(),
-                Sensor::Typeflag => "@typeflag".to_owned(),
-                Sensor::Controlled => "@controlled".to_owned(),
-                Sensor::Controller => "@controller".to_owned(),
-                Sensor::Name => "@name".to_owned(),
-                Sensor::PayloadCount => "@payloadCount".to_owned(),
-                Sensor::PayloadType => "@payloadType".to_owned(),
-                Sensor::Enabled => "@enabled".to_owned(),
-                Sensor::Config => "@config".to_owned(),
-                Sensor::Color => "@color".to_owned(),
-                Sensor::Other(vec) => {
+                Senseabled::TotalItem => "@totalItem".to_owned(),
+                Senseabled::FirstItem => "@firstItem".to_owned(),
+                Senseabled::TotalLiquids => "@totalLiquids".to_owned(),
+                Senseabled::TotalPower => "@totalPower".to_owned(),
+                Senseabled::ItemCapacity => "@itemCapacity".to_owned(),
+                Senseabled::LiquidCapacity => "@liquidCapacity".to_owned(),
+                Senseabled::PowerCapacity => "@powerCapacity".to_owned(),
+                Senseabled::PowerNetStored => "@powerNetStored".to_owned(),
+                Senseabled::PowerNetCapacity => "@powerNetCapacity".to_owned(),
+                Senseabled::PowerNetIn => "@powerNetIn".to_owned(),
+                Senseabled::PowerNetOut => "@powerNetOut".to_owned(),
+                Senseabled::Ammo => "@ammo".to_owned(),
+                Senseabled::AmmoCapacity => "@ammoCapacity".to_owned(),
+                Senseabled::Health => "@health".to_owned(),
+                Senseabled::MacHealth => "@macHealth".to_owned(),
+                Senseabled::Heat => "@heat".to_owned(),
+                Senseabled::Efficiency => "@efficiency".to_owned(),
+                Senseabled::Prograss => "@prograss".to_owned(),
+                Senseabled::Timescale => "@timescale".to_owned(),
+                Senseabled::Rotation => "@rotation".to_owned(),
+                Senseabled::X => "@x".to_owned(),
+                Senseabled::Y => "@y".to_owned(),
+                Senseabled::ShootX => "@shootX".to_owned(),
+                Senseabled::ShootY => "@shootY".to_owned(),
+                Senseabled::Size => "@size".to_owned(),
+                Senseabled::Dead => "@dead".to_owned(),
+                Senseabled::Range => "@range".to_owned(),
+                Senseabled::Shooting => "@shooting".to_owned(),
+                Senseabled::Boosting => "@boosting".to_owned(),
+                Senseabled::MineX => "@mineX".to_owned(),
+                Senseabled::MineY => "@mineY".to_owned(),
+                Senseabled::Mining => "@mining".to_owned(),
+                Senseabled::Speed => "@speed".to_owned(),
+                Senseabled::Team => "@team".to_owned(),
+                Senseabled::Typeflag => "@typeflag".to_owned(),
+                Senseabled::Controlled => "@controlled".to_owned(),
+                Senseabled::Controller => "@controller".to_owned(),
+                Senseabled::Name => "@name".to_owned(),
+                Senseabled::PayloadCount => "@payloadCount".to_owned(),
+                Senseabled::PayloadType => "@payloadType".to_owned(),
+                Senseabled::Enabled => "@enabled".to_owned(),
+                Senseabled::Config => "@config".to_owned(),
+                Senseabled::Color => "@color".to_owned(),
+                Senseabled::Other(vec) => {
                     unsafe {
                         if crate::DEBUG {
                             CTErr::UnknowConst(vec.clone()).solve();
                         }
                     }
-                    vec_to_str(vec)
+                    vec.to_string()
                 }
             }
         )
     }
 }
-impl From<Vec<char>> for Sensor {
+impl From<Vec<char>> for Senseabled {
     fn from(value: Vec<char>) -> Self {
         let match_text = |text: &str| -> bool {
             (value.len() == text.len()) && (value == text.chars().collect::<Vec<char>>())
@@ -555,7 +558,7 @@ impl From<Vec<char>> for Sensor {
         };
     }
 }
-impl From<&Expr> for Sensor {
+impl From<&Expr> for Senseabled {
     fn from(value: &Expr) -> Self {
         match value {
             Expr::Op(vec) => Self::from(vec.clone()),
@@ -564,20 +567,70 @@ impl From<&Expr> for Sensor {
         }
     }
 }
-#[derive(Clone)]
-pub enum BuildingQuery {
-    Core,
-    Other(Name),
-}
-impl Display for BuildingQuery {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BuildingQuery::Core => write!(f, "building core"),
-            BuildingQuery::Other(n) => write!(f, "{}", vec_to_str(n)),
+impl Type for Senseabled {
+    fn get_type(&self) -> VulType {
+        match &self {
+            Senseabled::TotalItem
+            | Senseabled::FirstItem
+            | Senseabled::TotalLiquids
+            | Senseabled::TotalPower
+            | Senseabled::ItemCapacity
+            | Senseabled::LiquidCapacity
+            | Senseabled::PowerCapacity
+            | Senseabled::PowerNetStored
+            | Senseabled::PowerNetCapacity
+            | Senseabled::PowerNetIn
+            | Senseabled::PowerNetOut
+            | Senseabled::Ammo
+            | Senseabled::AmmoCapacity
+            | Senseabled::Health
+            | Senseabled::Heat
+            | Senseabled::MacHealth
+            | Senseabled::X
+            | Senseabled::Y
+            | Senseabled::Timescale
+            | Senseabled::Rotation
+            | Senseabled::ShootX
+            | Senseabled::ShootY
+            | Senseabled::Size
+            | Senseabled::Dead
+            | Senseabled::Range
+            | Senseabled::Shooting
+            | Senseabled::Boosting
+            | Senseabled::MineX
+            | Senseabled::MineY
+            | Senseabled::Mining
+            | Senseabled::Speed
+            | Senseabled::PayloadCount
+            | Senseabled::Controlled => VulType::Basic,
+            Senseabled::Enabled => todo!(),
+            Senseabled::Efficiency => todo!(),  // ?
+            Senseabled::Prograss => todo!(),    // ?
+            Senseabled::Team => todo!(),        // ?
+            Senseabled::Typeflag => todo!(),    // ?
+            Senseabled::Name => todo!(),        // ?
+            Senseabled::PayloadType => todo!(), // const
+            Senseabled::Config => VulType::Senseabled,
+            Senseabled::Controller => VulType::Unit,
+            Senseabled::Color => VulType::Color,     // Color
+            Senseabled::Other(_) => VulType::Unknow, // ?
         }
     }
 }
-impl From<Vec<char>> for BuildingQuery {
+#[derive(Clone)]
+pub enum Target {
+    Core,
+    Other(Name),
+}
+impl Display for Target {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Target::Core => write!(f, "building core"),
+            Target::Other(n) => write!(f, "{}", n.to_string()),
+        }
+    }
+}
+impl From<Vec<char>> for Target {
     fn from(value: Vec<char>) -> Self {
         let match_text = |text: &str| -> bool {
             (value.len() == text.len()) && (value == text.chars().collect::<Vec<char>>())
@@ -589,7 +642,7 @@ impl From<Vec<char>> for BuildingQuery {
         };
     }
 }
-impl From<&Expr> for BuildingQuery {
+impl From<&Expr> for Target {
     fn from(value: &Expr) -> Self {
         match value {
             Expr::Op(vec) => Self::from(vec.clone()),
@@ -597,4 +650,98 @@ impl From<&Expr> for BuildingQuery {
             _ => todo!("你发现了Bug,速速上报!"),
         }
     }
+}
+
+pub enum UnitType {
+    // sla
+    Dagger,
+    Mace,
+    Fortress,
+    Scepter,
+    Reign,
+    // slb
+    Nova,
+    Pulsar,
+    Quasar,
+    Vela,
+    Corvus,
+    // slc
+    Crawler,
+    Atrax,
+    Spiroct,
+    Arkyid,
+    Toxopid,
+    // saa
+    Flare,
+    Horzion,
+    Zenith,
+    Autumbra,
+    Eclipse,
+    // sab
+    Momo,
+    Poly,
+    Mega,
+    Quad,
+    Oct,
+    // ssa
+    Risso,
+    Minke,
+    Bryde,
+    Sei,
+    Omura,
+    // ssb
+    Retusa,
+    Oxynoe,
+    Cyerce,
+    Aegires,
+    Navanax,
+    // sac
+    Alpha,
+    Beta,
+    Gamma,
+    // et
+    Stell,
+    Locus,
+    Precept,
+    Vanquish,
+    Conquer,
+    // es
+    Merui,
+    Cleroi,
+    Anthicus,
+    Tecta,
+    Collaris,
+    // ea
+    Elude,
+    Avert,
+    Obviate,
+    Quell,
+    Disrupt,
+    // ec
+    Evoke,
+    Incite,
+    Emanate,
+}
+impl From<Vec<char>> for UnitType {
+    fn from(value: Vec<char>) -> Self {
+        todo!()
+    }
+}
+impl From<&Expr> for UnitType {
+    fn from(value: &Expr) -> Self {
+        match value {
+            Expr::Op(vec) => Self::from(vec.clone()),
+            Expr::Data(vec) => Self::from(vec.clone()),
+            _ => todo!("你发现了Bug,速速上报!"),
+        }
+    }
+}
+impl Type for UnitType {
+    fn get_type(&self) -> VulType {
+        VulType::UnitType
+    }
+}
+// 类型系统
+pub trait Type {
+    fn get_type(&self) -> VulType;
 }

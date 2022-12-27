@@ -3,19 +3,23 @@
 避免重复计量PC导致错误
 
 内部变量:
+mll_rtet_<ID>               表达式过程量
 mll_ctcf_<FN_NAME>_<INDEX>  函数传参
 mll_rtfr_<FN_NAME>          函数返回
 mll_rtsc_<FN_NAME>          执行函数前保存位置
 mll_rtsw                    switch跳转
 */
-use super::abi::{BuildingQuery, Condition, Sensor};
-use super::code::Condition as CExpr;
+use super::abi::{Condition, Senseabled, Target};
+use super::code::{Condition as CExpr, CtrlRepeatUntil};
 use super::{
     abi::{LogicCode, Op},
     code::{CtrlDef, CtrlIf, CtrlReturn, CtrlSwitch, CtrlWhile, Expr, Set},
 };
+use crate::*;
+
 use crate::error::CTErr;
-use crate::lang::vec_to_str;
+use std::fmt::{Debug, Display};
+use std::ops::Deref;
 pub trait Complie
 where
     Self: Debug,
@@ -26,9 +30,6 @@ where
         false
     }
 }
-
-use std::fmt::Debug;
-use std::ops::Deref;
 /*
     代码生成部分
     先编译,再链接
@@ -56,13 +57,33 @@ impl Func {
     }
 }
 
-#[derive(Clone, Copy)]
-enum VulType {
-    Base,
+#[derive(Clone, Copy, PartialEq)]
+pub enum VulType {
+    Basic,
     Building,
     Unit,
+    Const,
+    Senseabled,
+    Color,
+    BuildingType,
+    UnitType,
+    Unknow,
 }
-
+impl Display for VulType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VulType::Basic => write!(f, "Base"),
+            VulType::Building => write!(f, "Building"),
+            VulType::Unit => write!(f, "Unit"),
+            VulType::Const => write!(f, "Const"),
+            VulType::Senseabled => write!(f, "Senseabled"),
+            VulType::Color => write!(f, "Color"),
+            VulType::BuildingType => write!(f, "BuildingType"),
+            VulType::UnitType => write!(f, "UnitType"),
+            VulType::Unknow => write!(f, "??????"),
+        }
+    }
+}
 struct Vul {
     vul_name: Name,
     vul_type: VulType,
@@ -88,44 +109,53 @@ static mut DEFED_VUL: Vec<Vul> = Vec::new();
 // 正在定义的函数
 static mut DEFING_FN: Option<Func> = None;
 // 查询值是否已经定义
-fn lookup_vul(name: &Vec<char>) -> bool {
-    unsafe {
-        for defed in &DEFED_VUL {
-            if defed.vul_name == *name {
+trait VulSys {
+    fn registed(&self) -> bool;
+    fn update(&self, self_type: VulType);
+    fn get_type(&self) -> VulType;
+    fn get_mutref_vul(&self) -> &'static mut Vul;
+}
+impl VulSys for Name {
+    fn registed(&self) -> bool {
+        for defed in unsafe { &DEFED_VUL } {
+            if defed.vul_name == *self {
                 return true;
             }
         }
+        return false;
     }
-    false
-}
-fn lookup_vultype(name: &Vec<char>) -> VulType {
-    unsafe {
-        for defed in &DEFED_VUL {
-            if defed.vul_name == *name {
-                return defed.vul_type;
-            }
+    fn update(&self, self_type: VulType) {
+        // 截取自旧(2022-12-25前)impl Complie for Set
+        let this = Vul::new(self.clone(), self_type);
+        if !self.registed() {
+            unsafe { DEFED_VUL.push(this) }
+        } else {
+            // 已经注册,就进行覆盖
+            *self.get_mutref_vul() = this;
         }
     }
-    VulType::Base
-}
-fn get_ref_vul(name: &Vec<char>) -> &'static mut Vul {
-    unsafe {
-        for r#ref in &mut DEFED_VUL {
-            if r#ref.vul_name == *name {
-                return r#ref;
+    fn get_type(&self) -> VulType {
+        if self.len() > 0 && self[0] == '@' {
+            return VulType::Const;
+        }
+        unsafe {
+            for defed in &DEFED_VUL {
+                if defed.vul_name == *self {
+                    return defed.vul_type;
+                }
             }
         }
+        VulType::Unknow
     }
-    todo!()
-}
-fn update_vul(name: &Vec<char>, r#type: VulType) {
-    // 截取自旧(2022-12-25前)impl Complie for Set
-    let this = Vul::new(name.clone(), r#type);
-    if !lookup_vul(&name) {
-        unsafe { DEFED_VUL.push(this) }
-    } else {
-        // 已经注册,就进行覆盖
-        *get_ref_vul(&name) = this;
+    fn get_mutref_vul(&self) -> &'static mut Vul {
+        unsafe {
+            for r#ref in &mut DEFED_VUL {
+                if r#ref.vul_name == *self {
+                    return r#ref;
+                }
+            }
+        }
+        todo!("你发现了Bug,迅速上报")
     }
 }
 // 别名系统 别名 实际名
@@ -133,7 +163,7 @@ static mut SHARD_VUL: Vec<(Name, Name)> = Vec::new();
 // 实验性功能:
 // 外部传参: 值类型
 // 仅CallFn设置为其他,其他函数只设置为Base
-static mut SHARE_UVL_TYPE: VulType = VulType::Base;
+static mut SHARE_UVL_TYPE: VulType = VulType::Basic;
 
 impl Complie for CtrlDef {
     fn complie(&self) -> Codes {
@@ -160,7 +190,7 @@ impl Complie for CtrlDef {
             unsafe {
                 SHARD_VUL.push((
                     arg.clone(),
-                    format!("mll_ctcf_{}_{}", vec_to_str(&self.fn_name), arg_id)
+                    format!("mll_ctcf_{}_{}", self.fn_name.to_string(), arg_id)
                         .chars()
                         .collect(),
                 ))
@@ -185,7 +215,7 @@ impl Complie for CtrlDef {
 impl Complie for CtrlReturn {
     fn complie(&self) -> Codes {
         // 获取函数名,过滤意义不明的return
-        let fn_name = vec_to_str(unsafe {
+        let fn_name = unsafe {
             match &DEFING_FN {
                 Some(defing_fn) => &defing_fn.fn_name,
                 None => {
@@ -193,7 +223,8 @@ impl Complie for CtrlReturn {
                     return Codes::new();
                 }
             }
-        });
+        }
+        .to_string();
 
         let fn_ret_name = format!("mll_rtfr_{}", fn_name)
             .chars()
@@ -285,52 +316,88 @@ impl Complie for CtrlIf {
 }
 impl Complie for CtrlSwitch {
     fn complie(&self) -> Codes {
-        // 虚拟容器
-        let mut codess: Vec<Codes> = Vec::new();
-
-        // 编译同时计算出最长元素的长
-        let mut max_len: usize = 0;
-        for case in &self.cases {
-            // 编译单个
-            let mut codes = Codes::new();
-            codes.link_cmus(case);
-            if codes.len() > max_len {
-                max_len = codes.len();
-            }
-            codess.push(codes);
-        }
-
-        // 补全长度不足部分,同时链接
-        let mut cases_codes = Codes::new();
-        for codes in &mut codess {
-            for _ in 0..max_len - codes.len() {
-                codes.push(empty_code())
-            }
-            cases_codes.link(codes);
-        }
-
-        // 创建跳转表
         let mut codes = Codes::new();
-        let cdtn_name = codes.link_expr(&self.condition);
+        // 旧实现,极其消耗资源
+        // // 虚拟容器
+        // let mut codess: Vec<Codes> = Vec::new();
 
-        // 跳转配置
-        codes.push(LogicCode::Op(
-            Op::Mul,
-            create_data("mll_rtsw"),
-            create_data(&format!("{}", max_len)),
-            cdtn_name,
-        ));
+        // // 编译同时计算出最长元素的长
+        // let mut max_len: usize = 0;
+        // for case in &self.cases {
+        //     // 编译单个
+        //     let mut codes = Codes::new();
+        //     codes.link_cmus(case);
+        //     if codes.len() > max_len {
+        //         max_len = codes.len();
+        //     }
+        //     codess.push(codes);
+        // }
 
-        // 进行跳转
+        // // 补全长度不足部分,同时链接
+        // let mut cases_codes = Codes::new();
+        // for codes in &mut codess {
+        //     for _ in 0..max_len - codes.len() {
+        //         codes.push(empty_code())
+        //     }
+        //     cases_codes.link(codes);
+        // }
+
+        // // 创建跳转表
+        // let mut codes = Codes::new();
+        // let cdtn_name = codes.link_expr(&self.condition);
+
+        // // 跳转配置
+        // codes.push(LogicCode::Op(
+        //     Op::Mul,
+        //     create_data("mll_rtsw"),
+        //     create_data(&format!("{}", max_len)),
+        //     cdtn_name,
+        // ));
+
+        // // 进行跳转
+        // codes.push(LogicCode::Op(
+        //     Op::Add,
+        //     create_data("@counter"),
+        //     create_data("@counter"),
+        //     create_data("mll_ct_rtsw"),
+        // ));
+
+        // // 链接并返回
+        // codes.link(&mut cases_codes);
+
+        // 获取跳转数量
+        let match_num = codes.link_expr(&self.condition);
         codes.push(LogicCode::Op(
             Op::Add,
             create_data("@counter"),
             create_data("@counter"),
-            create_data("mll_ct_rtsw"),
+            match_num,
         ));
 
-        // 链接并返回
-        codes.link(&mut cases_codes);
+        // 跳转表
+        let mut tags_of_jump_case_lines: Vec<usize> = Vec::new();
+        for i in 0..self.cases.len() {
+            tags_of_jump_case_lines.push(codes.len() + i);
+        }
+
+        // 尾跳转表
+        let mut tags_of_jump_end_lines: Vec<usize> = Vec::new();
+        // 编译链接跳转表
+        for i in 0..self.cases.len() {
+            // 链接跳转语句到case代码体
+            let codes_len = codes.len();
+            codes[tags_of_jump_case_lines[i]].reset_target(codes_len);
+            // 编译case代码体
+            codes.link_cmus(&self.cases[i]);
+            if i == self.cases.len() - 1 {
+                tags_of_jump_end_lines.push(codes.len() - 1);
+            }
+        }
+        // 最终链接
+        for tag in tags_of_jump_end_lines {
+            let codes_len = codes.len();
+            codes[tag].reset_target(codes_len);
+        }
         return codes;
     }
 }
@@ -351,6 +418,15 @@ impl Complie for CtrlWhile {
         return codes;
     }
 }
+impl Complie for CtrlRepeatUntil {
+    fn complie(&self) -> Codes {
+        let mut codes = Codes::new();
+        codes.link_cmus(&self.statements);
+        let tag_until = codes.link_xcon(&self.condition);
+        codes[tag_until].reset_target(0);
+        return codes;
+    }
+}
 impl Complie for Set {
     fn complie(&self) -> Codes {
         let mut codes = Codes::new();
@@ -361,11 +437,11 @@ impl Complie for Set {
             // 赋值 类似Return,尽可能采用Rename的方式
             if codes.len() == 0 {
                 // 值是有属性的量,就篡改类型!
-                let vul_type = lookup_vultype(&set_vul);
+                let vul_type = set_vul.get_type();
 
                 if set_vul == "@unit".chars().collect::<Vec<char>>() {
                     unsafe { SHARE_UVL_TYPE = VulType::Unit }
-                } else if !matches!(vul_type, VulType::Base) {
+                } else if !matches!(vul_type, VulType::Basic) {
                     unsafe { SHARE_UVL_TYPE = vul_type }
                 } else {
                     codes.push(LogicCode::Set(set.0.clone(), set_vul));
@@ -375,197 +451,11 @@ impl Complie for Set {
                 codes[codes_len - 1].rename_result(set.0.clone());
             }
             // 注册状态
-            update_vul(&set.0.clone(), unsafe { SHARE_UVL_TYPE })
+            set.0.update(unsafe { SHARE_UVL_TYPE });
         }
         return codes;
     }
 }
-// 内建宏      函数名 参数长 实现
-const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 12] = [
-    (
-        "sin",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(Op::Sin, alloc_name(), arg0, create_data("0")));
-            codes
-        }),
-    ),
-    (
-        "cos",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(Op::Cos, alloc_name(), arg0, create_data("0")));
-            codes
-        }),
-    ),
-    (
-        "tan",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(Op::Tan, alloc_name(), arg0, create_data("0")));
-            codes
-        }),
-    ),
-    (
-        "asin",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(
-                Op::Asin,
-                alloc_name(),
-                arg0,
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-    (
-        "acos",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(
-                Op::Acos,
-                alloc_name(),
-                arg0,
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-    (
-        "atan",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::Op(
-                Op::Atan,
-                alloc_name(),
-                arg0,
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-    (
-        "get_link",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::GetLink(alloc_name(), arg0));
-            codes
-        }),
-    ),
-    // 简易语句(2022 12 24)
-    (
-        "ubind",
-        1,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let arg0 = codes.link_expr(&args[0]);
-            codes.push(LogicCode::UnitBind(arg0));
-            codes
-        }),
-    ),
-    (
-        "umove",
-        2,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let x = codes.link_expr(&args[0]);
-            let y = codes.link_expr(&args[1]);
-            codes.push(LogicCode::UnitControl(
-                create_data("move"),
-                x,
-                y,
-                create_data("0"),
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-    (
-        "ulocate",
-        6,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let target = BuildingQuery::from(&args[0]);
-            let is_enemy = codes.link_expr(&args[1]);
-            let name_of_x = args[2].get_data();
-            let name_of_y = args[3].get_data();
-            let name_of_ifcound = args[4].get_data();
-            let name_of_building = args[5].get_data();
-
-            update_vul(&name_of_x, VulType::Base);
-            update_vul(&name_of_y, VulType::Base);
-            update_vul(&name_of_ifcound, VulType::Base);
-            update_vul(&name_of_building, VulType::Building);
-
-            codes.push(LogicCode::UnitLocate(
-                target,
-                is_enemy,
-                name_of_x,
-                name_of_y,
-                name_of_ifcound,
-                name_of_building,
-            ));
-            codes
-        }),
-    ),
-    (
-        "uidrop",
-        2,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-
-            let target = codes.link_expr(&args[0]);
-            let item_number = codes.link_expr(&args[1]);
-            codes.push(LogicCode::UnitControl(
-                create_data("itemDrop"),
-                target,
-                item_number,
-                create_data("0"),
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-    (
-        "uitake",
-        3,
-        &(|args: &Vec<Expr>| -> Codes {
-            let mut codes = Codes::new();
-            let target = codes.link_expr(&args[0]);
-            let arg1_data = args[1].get_data();
-            let item_name = if arg1_data == Vec::new() {
-                codes.link_expr(&args[1])
-            } else {
-                arg1_data
-            };
-            let item_number = codes.link_expr(&args[2]);
-            codes.push(LogicCode::UnitControl(
-                create_data("itemTake"),
-                target,
-                item_name,
-                item_number,
-                create_data("0"),
-            ));
-            codes
-        }),
-    ),
-];
-
 impl Complie for Expr {
     fn complie(&self) -> Codes {
         match self {
@@ -576,13 +466,19 @@ impl Complie for Expr {
                 if matches!(op, Op::Sensor) {
                     // 特殊情况:成员访问运算符(Sensor语句)
                     let lv = codes.link_expr(&l_expr);
-
-                    // 错误处理
-                    if matches!(lookup_vultype(&lv), VulType::Base) {
-                        CTErr::SensorBasetype(lv.clone()).solve();
+                    let sensor = Senseabled::from(&(**r_expr));
+                    static SENSOR_ENABLES: [VulType; 2] = [VulType::Unit, VulType::Building];
+                    let type_of_lv = lv.get_type();
+                    if !SENSOR_ENABLES.include(type_of_lv) {
+                        CTErr::SensorTypeUnmatch(
+                            lv.clone(),
+                            type_of_lv.to_string(),
+                            create_data("sensor"),
+                            0,
+                            SENSOR_ENABLES.all_to_string(),
+                        )
+                        .solve()
                     }
-
-                    let sensor = Sensor::from(&(**r_expr));
                     codes.push(LogicCode::Sensor(alloc_name(), lv, sensor))
                 } else {
                     // 普通情况
@@ -625,7 +521,7 @@ impl Complie for Expr {
 
                     // 查看值是否已经定义
                     // 未定义的给予提醒
-                    if !lookup_vul(vul) {
+                    if !vul.registed() {
                         CTErr::UnDefVul(vul.clone()).solve();
                     }
 
@@ -668,7 +564,7 @@ impl Complie for Expr {
                                 let arg_vul = codes.link_expr(&args[arg_id]);
                                 // 传参语句
                                 codes.push(LogicCode::Set(
-                                    format!("mll_ctcf_{}_{}", vec_to_str(&fn_name), arg_id)
+                                    format!("mll_ctcf_{}_{}", fn_name.to_string(), arg_id)
                                         .chars()
                                         .collect(),
                                     arg_vul,
@@ -678,7 +574,7 @@ impl Complie for Expr {
                             // 保存位置
                             codes.push(LogicCode::Op(
                                 Op::Add,
-                                format!("mll_rtsc_{}", vec_to_str(fn_name))
+                                format!("mll_rtsc_{}", fn_name.to_string())
                                     .chars()
                                     .collect(),
                                 create_data("@counter"),
@@ -695,7 +591,7 @@ impl Complie for Expr {
                             // if func.have_ret {
                             codes.push(LogicCode::Set(
                                 alloc_name(),
-                                format!("mll_rtfr_{}", vec_to_str(&fn_name))
+                                format!("mll_rtfr_{}", fn_name.to_string())
                                     .chars()
                                     .collect(),
                             ));
@@ -741,11 +637,11 @@ impl Link for Codes {
         return match self[self_len - 1].clone() {
             LogicCode::Set(_, vul) => {
                 self.remove(self_len - 1);
-                unsafe { SHARE_UVL_TYPE = VulType::Base }
+                unsafe { SHARE_UVL_TYPE = VulType::Basic }
                 vul.clone()
             }
             LogicCode::Op(_, vul, _, _) => {
-                unsafe { SHARE_UVL_TYPE = VulType::Base }
+                unsafe { SHARE_UVL_TYPE = VulType::Basic }
                 vul.clone()
             }
             LogicCode::GetLink(..) => {
@@ -850,7 +746,7 @@ impl Link for Codes {
 static mut ALLOCED: usize = 0;
 pub fn alloc_name() -> Name {
     unsafe {
-        let name = format!("mll_ct_expr_temp_{}", ALLOCED).chars().collect();
+        let name = format!("mll_rtet_{}", ALLOCED).chars().collect();
         ALLOCED += 1;
         return name;
     }
@@ -866,6 +762,211 @@ pub fn jump_always() -> LogicCode {
         create_data("1919810"),
     )
 }
-pub fn empty_code() -> LogicCode {
-    LogicCode::Set(create_data("_"), create_data("_"))
-}
+
+// 对原版的实现
+// 内建宏      函数名 参数长 实现
+const MACROS: [(&str, usize, &dyn Fn(&Vec<Expr>) -> Codes); 13] = [
+    (
+        "sin",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Sin, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "cos",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Cos, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "tan",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(Op::Tan, alloc_name(), arg0, create_data("0")));
+            codes
+        }),
+    ),
+    (
+        "asin",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Asin,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "acos",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Acos,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "atan",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::Op(
+                Op::Atan,
+                alloc_name(),
+                arg0,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "get_link",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let arg0 = codes.link_expr(&args[0]);
+            codes.push(LogicCode::GetLink(alloc_name(), arg0));
+            codes
+        }),
+    ),
+    // 简易语句(2022 12 24)
+    (
+        "ubind",
+        1,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            // arg0: Unit / UnitType
+            let arg0 = codes.link_expr(&args[0]);
+
+            codes.push(LogicCode::UnitBind(arg0));
+            codes
+        }),
+    ),
+    (
+        "umove",
+        2,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let x = codes.link_expr(&args[0]);
+            let y = codes.link_expr(&args[1]);
+            codes.push(LogicCode::UnitControl(
+                create_data("move"),
+                x,
+                y,
+                create_data("0"),
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "ulocate",
+        6,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let target = Target::from(&args[0]);
+            let is_enemy = codes.link_expr(&args[1]);
+            let name_of_x = args[2].get_data();
+            let name_of_y = args[3].get_data();
+            let name_of_ifcound = args[4].get_data();
+            let name_of_building = args[5].get_data();
+
+            name_of_x.update(VulType::Basic);
+            name_of_y.update(VulType::Basic);
+            name_of_ifcound.update(VulType::Basic);
+            name_of_building.update(VulType::Building);
+
+            codes.push(LogicCode::UnitLocate(
+                target,
+                is_enemy,
+                name_of_x,
+                name_of_y,
+                name_of_ifcound,
+                name_of_building,
+            ));
+            codes
+        }),
+    ),
+    (
+        "uidrop",
+        2,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+
+            let target = codes.link_expr(&args[0]);
+            let item_number = codes.link_expr(&args[1]);
+            codes.push(LogicCode::UnitControl(
+                create_data("itemDrop"),
+                target,
+                item_number,
+                create_data("0"),
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "uitake",
+        3,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let target = codes.link_expr(&args[0]);
+            let arg1_data = args[1].get_data();
+            let item_name = if arg1_data == Vec::new() {
+                codes.link_expr(&args[1])
+            } else {
+                arg1_data
+            };
+            let item_number = codes.link_expr(&args[2]);
+            codes.push(LogicCode::UnitControl(
+                create_data("itemTake"),
+                target,
+                item_name,
+                item_number,
+                create_data("0"),
+            ));
+            codes
+        }),
+    ),
+    (
+        "set_enabled",
+        2,
+        &(|args: &Vec<Expr>| -> Codes {
+            let mut codes = Codes::new();
+            let target = codes.link_expr(&args[0]);
+            let enabled = codes.link_expr(&args[1]);
+            codes.push(LogicCode::QuickilyAdded(
+                format!(
+                    "control enabled {} {} 0 0 ",
+                    target.to_string(),
+                    enabled.to_string(),
+                )
+                .chars()
+                .collect(),
+            ));
+            codes
+        }),
+    ),
+];
