@@ -31,7 +31,7 @@ fn main() -> ExitCode {
         let mut fake_argument = Argument::new();
         fake_argument.show_debug_meg = true;
         fake_argument.input_file_path =
-            "/home/twhicer/code/mindustry-logic-language/src/io/unit_auto_ammo.mll".to_owned();
+            "/home/twhicer/code/mindustry-logic-language/src/io/test6.mll".to_owned();
         fake_argument
     };
     if argument.get_help {

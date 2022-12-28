@@ -1,0 +1,1 @@
+set i = (i+1)%@links

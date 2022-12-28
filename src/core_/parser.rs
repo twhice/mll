@@ -305,11 +305,17 @@ fn tokens_get_expr(tokens: &mut Vec<Token>) -> Result<Vec<Token>, ErrMeg> {
                         ret.push(token);
                     } else if token.match_text("(") {
                         tokens.remove(0);
+                        ret.push(token); // 12-28 ADDED
                         ret.append(&mut tokens_get_expr(tokens)?);
                         expect_vul = false;
                         if let Err(err) = tokens_match_err(tokens, ")") {
                             return Err(ErrMeg::new(err.pos, Err::MissBra));
                         }
+                        ret.push(Token {
+                            text: ")".chars().collect(),
+                            pos: Pos::new(),
+                            ttype: TokenType::Symbol,
+                        })
                     } else {
                         return Err(ErrMeg::new(token.pos, Err::MissVul));
                     }
@@ -382,7 +388,7 @@ fn expr_priotity(expr: &Expr) -> usize {
                 vec![" "],
                 vec!["."], // 实验性功能,伪oo
                 vec!["**", "!"],
-                vec!["*", "/"],
+                vec!["*", "/", "%"],
                 vec!["+", "-"],
                 vec!["<<", ">>"],
                 vec![">", "<", ">=", "<="],

@@ -241,7 +241,7 @@ impl Complie for CtrlReturn {
             let codes_len = codes.len();
             // 重命名: 改用重命名函数
 
-            codes[codes_len].rename_result(fn_ret_name);
+            codes[codes_len - 1].rename_result(fn_ret_name);
 
             // 旧代码
             // codes[codes_len - 1] = match codes[codes_len - 1].clone() {
@@ -305,6 +305,10 @@ impl Complie for CtrlIf {
             finish_tags.push(codes.len());
             codes.push(jump_always());
         }
+
+        // 移除一行没用的跳转(影响观感)
+        codes.remove(codes.len() - 1);
+        finish_tags.remove(finish_tags.len() - 1);
 
         // 处理跳转到结束行的tag
         let codes_len = codes.len();
@@ -758,8 +762,8 @@ pub fn jump_always() -> LogicCode {
     LogicCode::Jump(
         0,
         super::abi::Condition::Always,
-        create_data("114514"),
-        create_data("1919810"),
+        create_data("0"),
+        create_data("0"),
     )
 }
 
