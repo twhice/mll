@@ -1,86 +1,26 @@
-/*
-Copyright (C) 2022  异月(twhice)
+use lex::*;
+use std::{env::args, io};
+use stmt::*;
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+mod lex;
+mod parse;
+mod stmt;
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+type Stmts = Vec<Box<dyn Statement>>;
+type Tokens = Vec<Token>;
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-use mindustry_logic_language::*;
-use std::io::Write;
-use std::{fs::File, process::ExitCode};
-
-fn main() -> ExitCode {
-    let argument = if true {
-        match build_args() {
-            Ok(ok) => ok,
-            Err(err) => {
-                println!("{err}");
-                return ExitCode::FAILURE;
-            }
-        }
+fn main() -> io::Result<()> {
+    let args = args().collect::<Vec<String>>();
+    if args.len() == 2 {
+        let mut program = Complier::new(&args[1])?;
+        program.run_lex().run_parser();
+        program.debug_tokens().check_tokens();
+        program.check_var_pool().check_label_pool();
+        let _stmts = program.get_stmts();
+        let _tokens = program.get_tokens();
     } else {
-        let mut fake_argument = Argument::new();
-        fake_argument.show_debug_meg = true;
-        fake_argument.input_file_path =
-            "/home/twhicer/code/mindustry-logic-language/src/io/test6.mll".to_owned();
-        fake_argument
-    };
-    if argument.get_help {
-        println!("{}", get_buildin_meg(&Meg::Help))
-    } else if argument.get_version {
-        println!("{}", get_buildin_meg(&Meg::Version))
-    } else {
-        let inf = argument.input_file_path.clone();
-        let outf = argument.output_file_path.clone();
-        let print = argument.print_to_stdout;
-        unsafe {
-            DEBUG = argument.show_debug_meg;
-            WARN_MEG = argument.show_warn_meg;
-        }
-        let src = match std::fs::read_to_string(argument.input_file_path.clone()) {
-            Ok(src) => src,
-            Err(err) => {
-                println!("{}", err);
-                return ExitCode::FAILURE;
-            }
-        };
-        // let mut sentens: Vec<Vec<String>> = Vec::new();
-        match complie(src, &inf) {
-            Ok(result) => {
-                // 不将就了!
-                if print {
-                    println!("编译结束!结果如下");
-                    println!("====================");
-                    for mdt_code in result {
-                        println!("{}", mdt_code)
-                    }
-                    println!("====================");
-                } else {
-                    let mut output_file = File::create(outf).unwrap();
-                    for line in result {
-                        write!(output_file, "{line}\n").unwrap();
-                    }
-                }
-            }
-            Err(err) => {
-                println!("{}", err);
-                return ExitCode::FAILURE;
-            }
-        };
+        println!("使用方式: ./mll <源文件>")
     }
-    return ExitCode::SUCCESS;
+
+    Ok(())
 }
-// run对ERR::EMPTY的处理 OK
-// expr和def对fn_args函数错误返回的处理 OK
-// ERR::UNMATCH 的转化 OK
-// 表达式解析Debug
-// 代码生成
